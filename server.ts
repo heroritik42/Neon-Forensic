@@ -323,7 +323,8 @@ async function startServer() {
   app.get("/api/evidence", (req, res) => {
     try {
       const files = getAllEvidenceFiles();
-      res.json(files);
+      // Support both direct array and wrapped property for client compatibility
+      res.json(Object.assign(files, { evidence: files, total: files.length }));
     } catch (err: any) {
       res.status(500).json({ error: err?.message });
     }
@@ -333,9 +334,31 @@ async function startServer() {
   app.get("/api/artifacts", (req, res) => {
     try {
       const artifacts = getAllArtifacts();
-      res.json(artifacts);
+      res.json({ artifacts, ...artifacts });
     } catch (err: any) {
       res.status(500).json({ error: err?.message });
+    }
+  });
+
+  // 7.1 Real-Time Artifacts Extraction from Connected Device
+  app.post("/api/artifacts/extract", async (req, res) => {
+    const { serial, caseId } = req.body;
+    if (!serial) {
+      return res.status(400).json({ error: "Device serial is required for artifact extraction" });
+    }
+    try {
+      const activeCase = getActiveCase() as any;
+      const targetCaseId = caseId || (activeCase ? activeCase.id : "CASE-LIVE-001");
+      const result = await performRealAcquisition(serial, targetCaseId, "STANDARD");
+      const freshArtifacts = getAllArtifacts();
+      res.json({
+        success: true,
+        message: "Real forensic artifacts extracted from target phone.",
+        ...result,
+        artifacts: freshArtifacts
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed extracting forensic artifacts" });
     }
   });
 
@@ -343,7 +366,7 @@ async function startServer() {
   app.get("/api/timeline", (req, res) => {
     try {
       const events = getAllTimelineEvents();
-      res.json(events);
+      res.json(Object.assign(events, { timeline: events, total: events.length }));
     } catch (err: any) {
       res.status(500).json({ error: err?.message });
     }
@@ -353,7 +376,7 @@ async function startServer() {
   app.get("/api/chain", (req, res) => {
     try {
       const chain = getAllChainOfCustody();
-      res.json(chain);
+      res.json(Object.assign(chain, { chain, total: chain.length }));
     } catch (err: any) {
       res.status(500).json({ error: err?.message });
     }

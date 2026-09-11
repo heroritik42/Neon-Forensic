@@ -7,22 +7,34 @@
 
 set -e
 
-CYAN='\033[0;36m'
-PURPLE='\033[0;35m'
-GREEN='\033[0;32m'
-AMBER='\033[0;33m'
-RED='\033[0;31m'
+# Multi-Neon Color Palette
+N_CYAN='\033[38;5;51m'
+N_PINK='\033[38;5;198m'
+N_GREEN='\033[38;5;82m'
+N_PURPLE='\033[38;5;141m'
+N_YELLOW='\033[38;5;226m'
+N_ORANGE='\033[38;5;208m'
+N_BLUE='\033[38;5;39m'
+BOLD='\033[1m'
 NC='\033[0m' # No Color
 
-echo -e "${CYAN}"
-echo "  ███╗   ██╗███████╗ ██████╗ ███╗   ██╗"
-echo "  ████╗  ██║██╔════╝██╔═══██╗████╗  ██║"
-echo "  ██╔██╗ ██║█████╗  ██║   ██║██╔██╗ ██║"
-echo "  ██║╚██╗██║██╔══╝  ██║   ██║██║╚██╗██║"
-echo "  ██║ ╚████║███████╗╚██████╔╝██║ ╚████║ FORENSIC WORKSTATION"
-echo "  ╚═╝  ╚═══╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝ (Linux Native)"
-echo -e "${NC}"
-echo -e "${PURPLE}Authorized Android Evidence Acquisition & Analysis Platform${NC}\n"
+CYAN="${N_CYAN}"
+PURPLE="${N_PURPLE}"
+GREEN="${N_GREEN}"
+AMBER="${N_YELLOW}"
+RED='\033[0;31m'
+
+echo -e "${N_CYAN}  ███╗   ██╗${N_PINK}███████╗${N_GREEN} ██████╗ ${N_PURPLE}███╗   ██╗"
+echo -e "${N_CYAN}  ████╗  ██║${N_PINK}██╔════╝${N_GREEN}██╔═══██╗${N_PURPLE}████╗  ██║"
+echo -e "${N_CYAN}  ██╔██╗ ██║${N_PINK}█████╗  ${N_GREEN}██║   ██║${N_PURPLE}██╔██╗ ██║"
+echo -e "${N_CYAN}  ██║╚██╗██║${N_PINK}██╔══╝  ${N_GREEN}██║   ██║${N_PURPLE}██║╚██╗██║"
+echo -e "${N_CYAN}  ██║ ╚████║${N_PINK}███████╗${N_GREEN}╚██████╔╝${N_PURPLE}██║ ╚████║  ${BOLD}${N_PINK}★ ${N_CYAN}Neon Forensic ${N_PINK}★"
+echo -e "${N_CYAN}  ╚═╝  ╚═══╝${N_PINK}╚══════╝${N_GREEN} ╚═════╝ ${N_PURPLE}╚═╝  ╚═══╝  ${BOLD}${N_YELLOW}by ${N_GREEN}Hero ${N_PINK}Ritik"
+echo ""
+echo -e "  ${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${NC}"
+echo -e "  ${N_CYAN}⚡  ${BOLD}${N_CYAN}Neon ${N_PINK}Forensic ${N_YELLOW}by ${N_GREEN}Hero ${N_PINK}Ritik  ${N_CYAN}⚡${NC}"
+echo -e "  ${N_PURPLE}▶  ${N_CYAN}Automated Linux Installer ${N_BLUE}& ${N_GREEN}Native Workstation Setup  ${N_PURPLE}◀${NC}"
+echo -e "  ${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${NC}\n"
 
 # 1. Check Root / Sudo capabilities for udev rules
 if [ "$EUID" -ne 0 ]; then

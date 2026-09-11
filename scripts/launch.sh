@@ -7,9 +7,28 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$DIR"
 
-echo "=================================================="
-echo "  Launching NEON FORENSIC Workstation GUI...      "
-echo "=================================================="
+# Multi-Neon Color Palette
+N_CYAN='\033[38;5;51m'
+N_PINK='\033[38;5;198m'
+N_GREEN='\033[38;5;82m'
+N_PURPLE='\033[38;5;141m'
+N_YELLOW='\033[38;5;226m'
+N_ORANGE='\033[38;5;208m'
+N_BLUE='\033[38;5;39m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+echo -e "${N_CYAN}  ███╗   ██╗${N_PINK}███████╗${N_GREEN} ██████╗ ${N_PURPLE}███╗   ██╗"
+echo -e "${N_CYAN}  ████╗  ██║${N_PINK}██╔════╝${N_GREEN}██╔═══██╗${N_PURPLE}████╗  ██║"
+echo -e "${N_CYAN}  ██╔██╗ ██║${N_PINK}█████╗  ${N_GREEN}██║   ██║${N_PURPLE}██╔██╗ ██║"
+echo -e "${N_CYAN}  ██║╚██╗██║${N_PINK}██╔══╝  ${N_GREEN}██║   ██║${N_PURPLE}██║╚██╗██║"
+echo -e "${N_CYAN}  ██║ ╚████║${N_PINK}███████╗${N_GREEN}╚██████╔╝${N_PURPLE}██║ ╚████║  ${BOLD}${N_PINK}★ ${N_CYAN}Neon Forensic ${N_PINK}★"
+echo -e "${N_CYAN}  ╚═╝  ╚═══╝${N_PINK}╚══════╝${N_GREEN} ╚═════╝ ${N_PURPLE}╚═╝  ╚═══╝  ${BOLD}${N_YELLOW}by ${N_GREEN}Hero ${N_PINK}Ritik"
+echo ""
+echo -e "  ${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${NC}"
+echo -e "  ${N_CYAN}⚡  ${BOLD}${N_CYAN}Neon ${N_PINK}Forensic ${N_YELLOW}by ${N_GREEN}Hero ${N_PINK}Ritik  ${N_CYAN}⚡${NC}"
+echo -e "  ${N_PURPLE}▶  ${N_CYAN}Launching Native Linux GUI & ADB Engine  ${N_PURPLE}◀${NC}"
+echo -e "  ${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${NC}\n"
 
 # Check if server is already running on port 3000
 if curl -s http://localhost:3000/api/devices > /dev/null 2>&1; then

@@ -21,8 +21,16 @@ export const CliModal: React.FC<CliModalProps> = ({
 }) => {
   const [history, setHistory] = useState<Array<{ cmd: string; output: string }>>([
     {
-      cmd: "neon-cli --version",
-      output: "NEON FORENSIC Command-Line Interface v3.4.0 (x86_64-linux-gnu)\nAuthorized Android Evidence Acquisition & Analysis Platform",
+      cmd: "banner",
+      output: `  ███╗   ██╗███████╗ ██████╗ ███╗   ██╗
+  ████╗  ██║██╔════╝██╔═══██╗████╗  ██║
+  ██╔██╗ ██║█████╗  ██║   ██║██╔██╗ ██║
+  ██║╚██╗██║██╔══╝  ██║   ██║██║╚██╗██║
+  ██║ ╚████║███████╗╚██████╔╝██║ ╚████║  ★ Neon Forensic ★
+  ╚═╝  ╚═══╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝  by Hero Ritik
+  ════════════════════════════════════════════════════════════
+  ⚡ NEON FORENSIC by Hero Ritik ⚡
+  Authorized Android Evidence Acquisition & Analysis Platform`,
     },
     {
       cmd: "help",
@@ -34,6 +42,7 @@ export const CliModal: React.FC<CliModalProps> = ({
   timeline --limit <n>     Display recent correlated temporal timeline events
   carve --unallocated      Scan raw residual blocks for file magic headers
   report --format <html>   Generate court-admissible forensic report
+  banner                   Display Neon Forensic by Hero Ritik ASCII banner
   clear                    Clear terminal screen
   help                     Show this command manual`,
     },
@@ -97,6 +106,16 @@ ${evidenceFiles.map((f) => `  ${f.sha256.slice(0, 32)}...  [OK] ${f.filename}`).
   0x00412000: PDF Document (16,384 bytes) [PARTIAL]`;
     } else if (lower.startsWith("report")) {
       output = `[✓] Generated court-admissible forensic dossier in /evidence/reports/NEON_REPORT_${currentCase.id}.html (SHA-256: e82910...)`;
+    } else if (lower === "banner") {
+      output = `  ███╗   ██╗███████╗ ██████╗ ███╗   ██╗
+  ████╗  ██║██╔════╝██╔═══██╗████╗  ██║
+  ██╔██╗ ██║█████╗  ██║   ██║██╔██╗ ██║
+  ██║╚██╗██║██╔══╝  ██║   ██║██║╚██╗██║
+  ██║ ╚████║███████╗╚██████╔╝██║ ╚████║  ★ Neon Forensic ★
+  ╚═╝  ╚═══╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝  by Hero Ritik
+  ════════════════════════════════════════════════════════════
+  ⚡ NEON FORENSIC by Hero Ritik ⚡
+  Authorized Android Evidence Acquisition & Analysis Platform`;
     } else if (lower === "help") {
       output = `Available Commands:
   devices                  List detected Android USB and TCP/IP devices

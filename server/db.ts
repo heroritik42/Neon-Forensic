@@ -368,6 +368,49 @@ export function addChainOfCustodyRecord(rec: any) {
   };
 }
 
+export function insertContact(c: { id?: string; caseId?: string; name: string; phone?: string; email?: string; lastContacted?: string; timesContacted?: number; rawId?: string }) {
+  const id = c.id || `C-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  db.prepare(`
+    INSERT INTO contacts (id, case_id, name, phone, email, last_contacted, times_contacted, raw_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, c.caseId || "CASE-LIVE-001", c.name, c.phone || null, c.email || null, c.lastContacted || null, c.timesContacted || 0, c.rawId || null);
+}
+
+export function insertSms(s: { id?: string; caseId?: string; address: string; body: string; date: string; type: string; readStatus?: number; threadId?: string }) {
+  const id = s.id || `SMS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  db.prepare(`
+    INSERT INTO sms_messages (id, case_id, address, body, date, type, read_status, thread_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, s.caseId || "CASE-LIVE-001", s.address, s.body, s.date, s.type, s.readStatus ?? 1, s.threadId || null);
+}
+
+export function insertCallLog(c: { id?: string; caseId?: string; number: string; name?: string; date: string; durationSeconds: number; callType: string; cachedLocation?: string }) {
+  const id = c.id || `CALL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  db.prepare(`
+    INSERT INTO call_logs (id, case_id, number, name, date, duration_seconds, call_type, cached_location)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, c.caseId || "CASE-LIVE-001", c.number, c.name || null, c.date, c.durationSeconds, c.callType, c.cachedLocation || null);
+}
+
+export function insertInstalledApp(a: { id?: string; caseId?: string; packageName: string; appName?: string; version?: string; installTime?: string; uid?: number; isSystem?: boolean; permissions?: string[]; suspiciousFindings?: string[] }) {
+  const id = a.id || `APP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  db.prepare(`
+    INSERT INTO installed_apps (id, case_id, package_name, app_name, version, install_time, uid, is_system, permissions_json, findings_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    a.caseId || "CASE-LIVE-001",
+    a.packageName,
+    a.appName || a.packageName.split(".").pop() || a.packageName,
+    a.version || "1.0",
+    a.installTime || new Date().toISOString(),
+    a.uid || 10000,
+    a.isSystem ? 1 : 0,
+    JSON.stringify(a.permissions || []),
+    JSON.stringify(a.suspiciousFindings || [])
+  );
+}
+
 export function getAdbLogs(limit = 100) {
   return db.prepare("SELECT * FROM adb_command_logs ORDER BY timestamp DESC LIMIT ?").all(limit).map((l: any) => ({
     id: l.id,

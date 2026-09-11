@@ -15,6 +15,7 @@ import { ChainOfCustodyView } from "./components/ChainOfCustodyView";
 import { ReportsView } from "./components/ReportsView";
 import { DeviceComparisonView } from "./components/DeviceComparisonView";
 import { RemoteControlView } from "./components/RemoteControlView";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 import { CliModal } from "./components/CliModal";
 import { AiForensicModal } from "./components/AiForensicModal";
@@ -114,6 +115,7 @@ export default function App() {
   const [isVerifyingIntegrity, setIsVerifyingIntegrity] = useState(false);
   const [integrityStatus, setIntegrityStatus] = useState<"VERIFIED" | "TAMPERED" | "UNCHECKED">("VERIFIED");
   const [isCarvingScanning, setIsCarvingScanning] = useState(false);
+  const [isExtractingArtifacts, setIsExtractingArtifacts] = useState(false);
 
   // Load data from backend SQLite database
   const loadBackendData = useCallback(async () => {
@@ -140,14 +142,12 @@ export default function App() {
       const evRes = await fetch("/api/evidence");
       if (evRes.ok) {
         const evData = await evRes.json();
-        if (Array.isArray(evData.evidence)) {
-          setEvidenceFiles(evData.evidence);
-          if (evData.evidence.length > 0) {
-            setSelectedHexFile(evData.evidence[0]);
-            // Check if demo sample
-            if (evData.evidence.some((f: EvidenceFile) => f.id === "EV-001")) {
-              setIsSampleCaseLoaded(true);
-            }
+        const evList = Array.isArray(evData) ? evData : (Array.isArray(evData?.evidence) ? evData.evidence : []);
+        if (evList.length > 0) {
+          setEvidenceFiles(evList);
+          setSelectedHexFile(evList[0]);
+          if (evList.some((f: EvidenceFile) => f.id === "EV-001")) {
+            setIsSampleCaseLoaded(true);
           }
         }
       }
@@ -156,11 +156,12 @@ export default function App() {
       const artRes = await fetch("/api/artifacts");
       if (artRes.ok) {
         const artData = await artRes.json();
-        if (artData.artifacts) {
-          setContacts(artData.artifacts.contacts || []);
-          setSms(artData.artifacts.sms || []);
-          setCalls(artData.artifacts.calls || []);
-          setApps(artData.artifacts.apps || []);
+        const artifacts = artData?.artifacts || artData;
+        if (artifacts) {
+          if (Array.isArray(artifacts.contacts)) setContacts(artifacts.contacts);
+          if (Array.isArray(artifacts.sms)) setSms(artifacts.sms);
+          if (Array.isArray(artifacts.calls)) setCalls(artifacts.calls);
+          if (Array.isArray(artifacts.apps)) setApps(artifacts.apps);
         }
       }
 
@@ -168,8 +169,9 @@ export default function App() {
       const timeRes = await fetch("/api/timeline");
       if (timeRes.ok) {
         const timeData = await timeRes.json();
-        if (Array.isArray(timeData.timeline)) {
-          setTimelineEvents(timeData.timeline);
+        const timeList = Array.isArray(timeData) ? timeData : (Array.isArray(timeData?.timeline) ? timeData.timeline : []);
+        if (timeList.length > 0) {
+          setTimelineEvents(timeList);
         }
       }
 
@@ -177,8 +179,9 @@ export default function App() {
       const chainRes = await fetch("/api/chain");
       if (chainRes.ok) {
         const chainData = await chainRes.json();
-        if (Array.isArray(chainData.chain)) {
-          setChainRecords(chainData.chain);
+        const chainList = Array.isArray(chainData) ? chainData : (Array.isArray(chainData?.chain) ? chainData.chain : []);
+        if (chainList.length > 0) {
+          setChainRecords(chainList);
         }
       }
     } catch (err) {
@@ -457,6 +460,40 @@ export default function App() {
     setIsCarvingScanning(false);
   };
 
+  const handleExtractArtifacts = async () => {
+    if (!device.serial || device.adbState !== "CONNECTED") {
+      alert("Please ensure an authorized Android phone is connected before extracting artifacts.");
+      return;
+    }
+    setIsExtractingArtifacts(true);
+    try {
+      const res = await fetch("/api/artifacts/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serial: device.serial, caseId: currentCase.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadBackendData();
+        const newLog: AdbCommandLog = {
+          id: `LOG-${Date.now().toString().slice(-4)}`,
+          timestamp: new Date().toISOString(),
+          deviceSerial: device.serial,
+          command: "adb shell content query & pm list & dumpsys",
+          result: "SUCCESS",
+          outputSnippet: `Forensic acquisition complete. Real contacts, SMS, call logs, and manifests loaded.`
+        };
+        setAdbLogs((prev) => [newLog, ...prev]);
+      } else {
+        alert(`Artifact extraction notice: ${data.error || "Execution completed."}`);
+      }
+    } catch (err: any) {
+      console.error("Artifact extraction error:", err);
+    } finally {
+      setIsExtractingArtifacts(false);
+    }
+  };
+
   const handleImportBackupFile = async (files: FileList) => {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -542,7 +579,8 @@ export default function App() {
         />
 
         <main className="flex-1 p-5 overflow-y-auto max-w-7xl mx-auto w-full">
-          {currentTab === "DASHBOARD" && (
+          <ErrorBoundary onReset={loadBackendData}>
+            {currentTab === "DASHBOARD" && (
             <DashboardView
               currentCase={currentCase}
               device={device}
@@ -619,6 +657,9 @@ export default function App() {
               calls={calls}
               browsers={MOCK_BROWSER}
               apps={apps}
+              isConnected={device.adbState === "CONNECTED"}
+              isExtracting={isExtractingArtifacts}
+              onExtractArtifacts={handleExtractArtifacts}
             />
           )}
 
@@ -678,6 +719,7 @@ export default function App() {
           {currentTab === "COMPARE" && (
             <DeviceComparisonView currentDevice={device} />
           )}
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -701,8 +743,10 @@ export default function App() {
       <CliModal
         isOpen={isCliOpen}
         onClose={() => setIsCliOpen(false)}
-        onExecuteCommand={handleExecuteAdbCommand}
-        logs={adbLogs}
+        currentCase={currentCase}
+        device={device}
+        evidenceFiles={evidenceFiles}
+        onTriggerAcquisition={() => handleStartAcquisition("STANDARD")}
       />
 
       <AiForensicModal

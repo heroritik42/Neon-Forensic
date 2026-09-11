@@ -33,7 +33,7 @@ export interface ForensicCase {
   timezone: string;
   notes: string;
   evidenceLocation: string;
-  hashAlgorithm: "SHA-256" | "SHA-512" | "MD5";
+  hashAlgorithm: "SHA-256" | "SHA-512" | "MD5" | "DOUBLE_SHA256";
   createdAt: string;
   status: "ACTIVE" | "ARCHIVED" | "SEALED";
 }
@@ -46,20 +46,23 @@ export interface AndroidDevice {
   androidVersion: string;
   sdkVersion: number;
   buildFingerprint: string;
+  buildNumber?: string;
   securityPatch: string;
   adbState: DeviceState;
   usbState: "ATTACHED" | "DISCONNECTED" | "SUSPENDED";
   vendorId: string;
   productId: string;
   usbMode: "MTP" | "PTP" | "ADB" | "CHARGING_ONLY";
-  rootStatus: "SELINUX_ENFORCING" | "UNROOTED_VERIFIED" | "ROOTED_INSECURE";
+  rootStatus: "SELINUX_ENFORCING" | "UNROOTED_VERIFIED" | "ROOTED_INSECURE" | string;
   batteryLevel: number;
   batteryHealth: string;
+  encryptionType?: string;
   storage: {
     totalBytes: number;
     usedBytes: number;
-    sharedBytes: number;
-    encryptionType: "FILE_BASED_ENCRYPTION_FBE" | "FULL_DISK_ENCRYPTION_FDE" | "NONE";
+    sharedBytes?: number;
+    freeBytes?: number;
+    encryptionType: "FILE_BASED_ENCRYPTION_FBE" | "FULL_DISK_ENCRYPTION_FDE" | "NONE" | string;
   };
   tcpIpEnabled: boolean;
   ipAddress?: string;

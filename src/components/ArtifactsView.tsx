@@ -12,6 +12,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   ShieldAlert,
+  DownloadCloud,
+  RefreshCw,
 } from "lucide-react";
 import {
   ContactArtifact,
@@ -27,6 +29,9 @@ interface ArtifactsViewProps {
   calls: CallLogArtifact[];
   browsers: BrowserArtifact[];
   apps: ApplicationArtifact[];
+  isConnected?: boolean;
+  isExtracting?: boolean;
+  onExtractArtifacts?: () => void;
 }
 
 export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
@@ -35,6 +40,9 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
   calls,
   browsers,
   apps,
+  isConnected,
+  isExtracting,
+  onExtractArtifacts,
 }) => {
   const [activeSubtab, setActiveSubtab] = useState<"SMS" | "CONTACTS" | "CALLS" | "BROWSER" | "APPS">("SMS");
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,15 +142,33 @@ export const ArtifactsView: React.FC<ArtifactsViewProps> = ({
           </button>
         </div>
 
-        <div className="relative min-w-[240px]">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={`Filter ${activeSubtab.toLowerCase()} records...`}
-            className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-md text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
-          />
+        <div className="flex items-center gap-2 flex-1 sm:flex-none justify-end">
+          <div className="relative min-w-[200px] flex-1 sm:flex-none">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={`Filter ${activeSubtab.toLowerCase()} records...`}
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-md text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          {onExtractArtifacts && (
+            <button
+              onClick={onExtractArtifacts}
+              disabled={isExtracting}
+              className="px-3.5 py-1.5 rounded-md bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold flex items-center gap-1.5 transition-all text-xs shadow-[0_0_15px_rgba(6,182,212,0.3)] whitespace-nowrap disabled:opacity-50"
+              title="Extract live SMS, Contacts, Call logs, and App manifests directly from connected phone"
+            >
+              {isExtracting ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-950" />
+              ) : (
+                <DownloadCloud className="w-3.5 h-3.5 text-slate-950" />
+              )}
+              <span>{isExtracting ? "Extracting Phone..." : "Extract Phone Artifacts"}</span>
+            </button>
+          )}
         </div>
       </div>
 

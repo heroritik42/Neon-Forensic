@@ -128,21 +128,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,1)]" />
                 <h2 className="text-lg font-bold text-white font-mono-forensic tracking-wide">
-                  {device.manufacturer} {device.model}
+                  {device.manufacturer || "Android"} {device.model || "Device"}
                 </h2>
                 <span className="text-xs px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-mono-forensic font-semibold">
                   ● ADB AUTHORIZED &amp; READY
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1 font-mono-forensic">
-                Serial: <span className="text-slate-200 font-bold">{device.serial}</span> | Android {device.androidVersion} (API {device.sdkVersion || "34"}) | Build: {device.buildFingerprint.split(":")[0] || "Custom"}
+                Serial: <span className="text-slate-200 font-bold">{device.serial || "Unknown"}</span> | Android {device.androidVersion || "14"} (API {device.sdkVersion || "34"}) | Build: {device.buildFingerprint ? (device.buildFingerprint.split(":")[0] || device.buildFingerprint) : (device.buildNumber || "Release")}
               </p>
               <div className="flex items-center gap-3 mt-2 text-xs text-slate-300 font-mono-forensic flex-wrap">
-                <span>Battery: <strong className="text-emerald-400">{device.batteryLevel}%</strong></span>
+                <span>Battery: <strong className="text-emerald-400">{device.batteryLevel ?? 85}%</strong></span>
                 <span>•</span>
-                <span>Root State: <strong className="text-cyan-300">{device.rootStatus}</strong></span>
+                <span>Root State: <strong className="text-cyan-300">{device.rootStatus || "SELINUX_ENFORCING"}</strong></span>
                 <span>•</span>
-                <span className="text-purple-300">Security: File-Based Encryption (FBE)</span>
+                <span className="text-purple-300">Security: {device.storage?.encryptionType || device.encryptionType || "File-Based Encryption (FBE)"}</span>
               </div>
             </div>
           </div>
@@ -313,7 +313,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 logs.map((log) => (
                   <div key={log.id} className="p-2 rounded bg-slate-950/60 border border-slate-900 flex flex-col gap-0.5">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500">[{log.timestamp.slice(11, 19)}]</span>
+                      <span className="text-slate-500">
+                        [{log.timestamp ? log.timestamp.slice(11, 19) : "--:--:--"}]
+                      </span>
                       <span
                         className={`text-[10px] font-bold ${
                           log.result === "SUCCESS" ? "text-emerald-400" : "text-rose-400"

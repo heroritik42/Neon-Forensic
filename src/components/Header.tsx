@@ -62,8 +62,12 @@ export const Header: React.FC<HeaderProps> = ({
                   v3.5 PRO
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 tracking-tight">
-                Authorized Android Forensics &amp; Hardware Remote Controller
+              <p className="text-[11px] text-slate-400 tracking-tight flex items-center gap-1.5 flex-wrap">
+                <span>Authorized Android Forensics &amp; Remote Controller</span>
+                <span className="text-slate-600 hidden sm:inline">•</span>
+                <span className="bg-gradient-to-r from-cyan-400 via-pink-400 to-emerald-400 bg-clip-text text-transparent font-semibold">
+                  by Hero Ritik
+                </span>
               </p>
             </div>
           </div>
@@ -112,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-cyan-300">{device.manufacturer}</span>
               </div>
               <div className="text-slate-300 truncate max-w-[140px] text-[11px]">
-                {device.model} ({device.androidVersion.split(" ")[0]})
+                {device.model || "Android"} ({device.androidVersion ? device.androidVersion.split(" ")[0] : "14"})
               </div>
             </div>
           </div>
