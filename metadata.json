@@ -1,0 +1,6 @@
+{
+  "name": "NEON FORENSIC",
+  "description": "Authorized Android Evidence Acquisition & Analysis Platform",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

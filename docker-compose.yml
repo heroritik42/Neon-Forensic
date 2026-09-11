@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  neon-forensic:
+    build: .
+    container_name: neon-forensic-workstation
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    # Privileged mode & USB device mounting allows container to talk directly to connected Android devices
+    privileged: true
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - ./evidence_exports:/app/evidence_exports
+    environment:
+      - NODE_ENV=production
+      - PORT=3000

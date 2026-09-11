@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NEON FORENSIC
+Comment=Authorized Android Evidence Acquisition & Analysis Platform
+Exec=bash -c "npm start"
+Icon=utilities-terminal
+Terminal=true
+Categories=Development;Security;System;Forensics;
+Keywords=Android;Forensics;ADB;Acquisition;Evidence;
+StartupNotify=true
