@@ -53,9 +53,11 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
   // Screen refresh & capture state
   const [autoRefreshRate, setAutoRefreshRate] = useState<number>(1500); // ms (0 = paused)
   const [lastRefreshTimestamp, setLastRefreshTimestamp] = useState<number>(Date.now());
+  const [activeScreenSrc, setActiveScreenSrc] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [realScreenAvailable, setRealScreenAvailable] = useState<boolean>(false);
+  const isRefreshingRef = useRef(false);
 
   // Touch & interaction feedback
   const [touchIndicator, setTouchIndicator] = useState<{ x: number; y: number } | null>(null);
@@ -105,22 +107,32 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
   }, [isConnected, autoRefreshRate, device.serial]);
 
   const refreshScreen = async () => {
-    if (!isConnected) return;
+    if (!isConnected || isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
     setIsCapturing(true);
     const ts = Date.now();
+    const frameUrl = `/api/devices/screen?serial=${encodeURIComponent(device.serial)}&t=${ts}`;
+
     try {
-      const res = await fetch(`/api/devices/screen?serial=${encodeURIComponent(device.serial)}&t=${ts}`);
-      if (res.ok) {
+      // Preload image off-screen before swapping DOM element to eliminate flicker and layout shift
+      const img = new Image();
+      img.onload = () => {
+        setActiveScreenSrc(frameUrl);
         setRealScreenAvailable(true);
         setCaptureError(null);
         setLastRefreshTimestamp(ts);
-      } else {
-        setRealScreenAvailable(false);
-      }
+        setIsCapturing(false);
+        isRefreshingRef.current = false;
+      };
+      img.onerror = () => {
+        // Keep previous frame visible if temporary network hiccup occurs to avoid jumping
+        setIsCapturing(false);
+        isRefreshingRef.current = false;
+      };
+      img.src = frameUrl;
     } catch (e) {
-      setRealScreenAvailable(false);
-    } finally {
       setIsCapturing(false);
+      isRefreshingRef.current = false;
     }
   };
 
@@ -371,16 +383,17 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
               ref={screenContainerRef}
               onMouseDown={handleScreenMouseDown}
               onMouseUp={handleScreenMouseUp}
-              className="relative w-full aspect-[9/19.5] rounded-[24px] overflow-hidden bg-slate-950 cursor-pointer border border-slate-800/80 group"
+              className="relative w-full aspect-[9/19.5] min-h-[520px] max-h-[580px] rounded-[24px] overflow-hidden bg-slate-950 cursor-pointer border border-slate-800/80 group select-none"
+              style={{ overflowAnchor: "none" }}
               title="Click or drag anywhere on screen to touch & gesture on target phone"
             >
               {/* If real ADB screenshot is available */}
-              {realScreenAvailable && isConnected ? (
+              {activeScreenSrc && isConnected ? (
                 <img
-                  src={`/api/devices/screen?serial=${encodeURIComponent(device.serial)}&t=${lastRefreshTimestamp}`}
+                  src={activeScreenSrc}
                   alt="Live Android Screen"
                   className="w-full h-full object-cover select-none pointer-events-none"
-                  onError={() => setRealScreenAvailable(false)}
+                  draggable={false}
                 />
               ) : (
                 /* Simulated High-Fidelity Android OS Screen */
@@ -498,14 +511,21 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
         </div>
 
         {/* COLUMN 2: HARDWARE ACTION DECK & REMOTE SUITE (7 cols on lg) */}
-        <div className="lg:col-span-7 space-y-4">
-          {/* Action Feedback Banner */}
-          {actionFeedback && (
-            <div className="p-2.5 rounded-lg bg-cyan-950/60 border border-cyan-500/50 text-cyan-300 text-xs font-mono-forensic flex items-center gap-2 animate-in fade-in duration-150">
-              <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
-              <span>{actionFeedback}</span>
-            </div>
-          )}
+        <div className="lg:col-span-7 space-y-4" style={{ overflowAnchor: "none" }}>
+          {/* Action Feedback Banner - Fixed Height to prevent any layout shifting */}
+          <div className="h-9 flex items-center">
+            {actionFeedback ? (
+              <div className="w-full px-3 py-1.5 rounded-lg bg-cyan-950/70 border border-cyan-500/50 text-cyan-300 text-xs font-mono-forensic flex items-center gap-2 animate-in fade-in duration-150 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">{actionFeedback}</span>
+              </div>
+            ) : (
+              <div className="w-full px-3 py-1.5 rounded-lg bg-slate-950/40 border border-slate-800/50 text-slate-500 text-[11px] font-mono-forensic flex items-center gap-2">
+                <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+                <span>Device bridge active • Direct ADB hardware bus</span>
+              </div>
+            )}
+          </div>
 
           {/* Hardware Button Deck */}
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
@@ -748,13 +768,16 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
             </div>
           </div>
 
-          {/* Command execution audit feed */}
-          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2">
+          {/* Command execution audit feed - Fixed height and scroll anchor disabled */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2" style={{ overflowAnchor: "none" }}>
             <div className="flex items-center justify-between text-[11px] font-mono-forensic text-slate-400 uppercase">
-              <span>Touch &amp; Key Event Stream</span>
+              <span className="flex items-center gap-1.5">
+                <Radio className="w-3 h-3 text-cyan-400" />
+                Touch &amp; Key Event Stream
+              </span>
               <span className="text-cyan-400">{commandLogs.length} events</span>
             </div>
-            <div className="space-y-1 max-h-28 overflow-y-auto font-mono-forensic text-[10px]">
+            <div className="space-y-1 h-28 overflow-y-auto font-mono-forensic text-[10px] pr-1" style={{ overflowAnchor: "none" }}>
               {commandLogs.length === 0 ? (
                 <div className="text-slate-600 italic py-1">
                   Ready. Click on the screen or press buttons above to interact with the device.

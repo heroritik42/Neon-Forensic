@@ -33,7 +33,8 @@ import {
   sendRemoteSwipe,
   sendRemoteKey,
   sendRemoteText,
-  sendRemoteIntent
+  sendRemoteIntent,
+  performForensicRecovery
 } from "./server/adb.js";
 
 // Initialize SQLite database
@@ -407,6 +408,19 @@ async function startServer() {
       res.json({ success: true, message: "Loaded sample training case into evidence vault." });
     } catch (err: any) {
       res.status(500).json({ error: err?.message });
+    }
+  });
+
+  // 10b. Advanced Forensic Recovery & Carving
+  app.post("/api/forensics/recover", async (req, res) => {
+    try {
+      const serial = req.body.serial || "DEV-FORENSIC-01";
+      const method = req.body.method || "ALL";
+      const caseId = req.body.caseId || "CASE-ACTIVE";
+      const result = await performForensicRecovery(serial, method, caseId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Forensic recovery execution failed." });
     }
   });
 

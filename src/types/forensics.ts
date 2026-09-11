@@ -229,7 +229,9 @@ export interface TimelineEvent {
 
 export interface CarvedFileArtifact {
   id: string;
-  fileType: "JPEG" | "PNG" | "PDF" | "ZIP" | "MP4" | "MP3" | "SQLITE";
+  filename?: string;
+  fileType: "JPEG" | "PNG" | "WEBP" | "PDF" | "DOC" | "DOCX" | "TXT" | "LOG" | "ZIP" | "MP4" | "MP3" | "SQLITE";
+  category?: "Images" | "Documents" | "Videos" | "Audio" | "Text" | "Databases" | "Archives";
   offset: string;
   offsetDec: number;
   size: number;
@@ -238,6 +240,15 @@ export interface CarvedFileArtifact {
   sha256: string;
   validationDetails: string;
   recoveryNote: string;
+  recoveryMethod?: "TRASH_INODE" | "THUMBNAIL_RECONSTRUCT" | "SQLITE_WAL_FREELIST" | "MAGIC_HEADER_CARVE" | "CACHE_EXTRACT";
+  deletedOriginalPath?: string;
+  recoveredSource?: string;
+  recoveredTimestamp?: string;
+  contentSnippet?: string;
+  previewUrl?: string;
+  hexDump?: string;
+  metadata?: Record<string, any>;
+  mimeType?: string;
 }
 
 export interface ChainOfCustodyRecord {
