@@ -12,7 +12,9 @@ import {
   Cpu,
   RefreshCw,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  Wifi,
+  TabletSmartphone
 } from "lucide-react";
 import { AndroidDevice, AdbCommandLog } from "../types/forensics";
 
@@ -24,6 +26,8 @@ interface DeviceManagerViewProps {
   isScanningDevices?: boolean;
   detectedDevices?: AndroidDevice[];
   onSelectDevice?: (dev: AndroidDevice) => void;
+  onOpenWirelessModal?: () => void;
+  onOpenRemoteControl?: () => void;
 }
 
 export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
@@ -34,6 +38,8 @@ export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
   isScanningDevices,
   detectedDevices = [],
   onSelectDevice,
+  onOpenWirelessModal,
+  onOpenRemoteControl,
 }) => {
   const [selectedCommand, setSelectedCommand] = useState("adb shell getprop");
   const [activeTab, setActiveTab] = useState<"PROPERTIES" | "ADB_WRAPPER" | "USB_SUBSYSTEM">("PROPERTIES");
@@ -125,10 +131,30 @@ export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
             <button
               onClick={onScanDevices}
               disabled={isScanningDevices}
-              className="px-4 py-2 rounded-lg bg-cyan-950/80 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 text-xs font-mono-forensic font-bold flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+              className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-mono-forensic font-bold flex items-center gap-1.5 transition-all"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScanningDevices ? "animate-spin text-cyan-400" : ""}`} />
-              <span>{isScanningDevices ? "Scanning ADB..." : "Scan USB Bus"}</span>
+              <span>{isScanningDevices ? "Scanning..." : "Scan USB"}</span>
+            </button>
+          )}
+
+          {onOpenWirelessModal && (
+            <button
+              onClick={onOpenWirelessModal}
+              className="px-3.5 py-2 rounded-lg bg-cyan-950/80 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 text-xs font-mono-forensic font-bold flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+            >
+              <Wifi className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Wireless Debugging</span>
+            </button>
+          )}
+
+          {onOpenRemoteControl && (
+            <button
+              onClick={onOpenRemoteControl}
+              className="px-3.5 py-2 rounded-lg bg-rose-950/70 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 text-xs font-mono-forensic font-bold flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(244,63,94,0.2)]"
+            >
+              <TabletSmartphone className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+              <span>Live Remote Control</span>
             </button>
           )}
         </div>

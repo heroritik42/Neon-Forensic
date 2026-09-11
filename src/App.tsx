@@ -14,12 +14,14 @@ import { MediaView } from "./components/MediaView";
 import { ChainOfCustodyView } from "./components/ChainOfCustodyView";
 import { ReportsView } from "./components/ReportsView";
 import { DeviceComparisonView } from "./components/DeviceComparisonView";
+import { RemoteControlView } from "./components/RemoteControlView";
 
 import { CliModal } from "./components/CliModal";
 import { AiForensicModal } from "./components/AiForensicModal";
 import { CaseModal } from "./components/CaseModal";
 import { LimitationsModal } from "./components/LimitationsModal";
 import { LinuxDownloadModal } from "./components/LinuxDownloadModal";
+import { WirelessDebugModal } from "./components/WirelessDebugModal";
 
 import {
   INITIAL_CASE,
@@ -101,6 +103,7 @@ export default function App() {
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isLimitationsOpen, setIsLimitationsOpen] = useState(false);
   const [isLinuxModalOpen, setIsLinuxModalOpen] = useState(false);
+  const [isWirelessModalOpen, setIsWirelessModalOpen] = useState(false);
 
   // Acquisition States
   const [isAcquiring, setIsAcquiring] = useState(false);
@@ -451,6 +454,8 @@ export default function App() {
         onOpenAi={() => setIsAiOpen(true)}
         onOpenLimitations={() => setIsLimitationsOpen(true)}
         onOpenLinuxDownload={() => setIsLinuxModalOpen(true)}
+        onOpenWirelessModal={() => setIsWirelessModalOpen(true)}
+        onSelectRemoteControl={() => setCurrentTab("REMOTE_CONTROL")}
         onVerifyIntegrity={handleVerifyIntegrity}
         isVerifying={isVerifyingIntegrity}
         integrityStatus={integrityStatus}
@@ -504,6 +509,16 @@ export default function App() {
               isScanningDevices={isScanningDevices}
               detectedDevices={detectedDevices}
               onSelectDevice={(d) => setDevice(d)}
+              onOpenWirelessModal={() => setIsWirelessModalOpen(true)}
+              onOpenRemoteControl={() => setCurrentTab("REMOTE_CONTROL")}
+            />
+          )}
+
+          {currentTab === "REMOTE_CONTROL" && (
+            <RemoteControlView
+              device={device}
+              onRefreshDevices={handleScanDevices}
+              onOpenWirelessModal={() => setIsWirelessModalOpen(true)}
             />
           )}
 
@@ -651,6 +666,12 @@ export default function App() {
       <LinuxDownloadModal
         isOpen={isLinuxModalOpen}
         onClose={() => setIsLinuxModalOpen(false)}
+      />
+
+      <WirelessDebugModal
+        isOpen={isWirelessModalOpen}
+        onClose={() => setIsWirelessModalOpen(false)}
+        onDeviceConnected={handleScanDevices}
       />
     </div>
   );

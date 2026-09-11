@@ -20,7 +20,17 @@ import {
   checkAdbBinary,
   getConnectedAdbDevices,
   executeSafeAdbCommand,
-  performRealAcquisition
+  performRealAcquisition,
+  wirelessPair,
+  wirelessConnect,
+  wirelessDisconnect,
+  getScreenResolution,
+  captureScreenPng,
+  sendRemoteTap,
+  sendRemoteSwipe,
+  sendRemoteKey,
+  sendRemoteText,
+  sendRemoteIntent
 } from "./server/adb.js";
 
 // Initialize SQLite database
@@ -88,6 +98,156 @@ async function startServer() {
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err?.message });
+    }
+  });
+
+  // 3.1 Wireless Debugging: Pair with 6-digit Code (Android 11+)
+  app.post("/api/devices/wireless/pair", async (req, res) => {
+    const { ip, port, code } = req.body;
+    if (!ip || !port || !code) {
+      return res.status(400).json({ error: "IP, port, and 6-digit pairing code are required" });
+    }
+    try {
+      const result = await wirelessPair(ip, port, code);
+      // If pair succeeded, automatically attempt connect
+      if (result.success) {
+        const connectRes = await wirelessConnect(ip, port);
+        return res.json({
+          success: true,
+          paired: true,
+          connected: connectRes.success,
+          output: `${result.output}\n${connectRes.output}`,
+          endpoint: result.endpoint,
+        });
+      }
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Wireless pairing failed" });
+    }
+  });
+
+  // 3.2 Wireless Debugging: Connect via IP:PORT
+  app.post("/api/devices/wireless/connect", async (req, res) => {
+    const { ip, port } = req.body;
+    if (!ip || !port) {
+      return res.status(400).json({ error: "IP and port are required" });
+    }
+    try {
+      const result = await wirelessConnect(ip, port);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Wireless connection failed" });
+    }
+  });
+
+  // 3.3 Wireless Debugging: Disconnect
+  app.post("/api/devices/wireless/disconnect", async (req, res) => {
+    const { target } = req.body;
+    if (!target) {
+      return res.status(400).json({ error: "Target IP:PORT is required" });
+    }
+    try {
+      const result = await wirelessDisconnect(target);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Wireless disconnect failed" });
+    }
+  });
+
+  // 3.4 Live Remote Screen Capture (PNG stream)
+  app.get("/api/devices/screen", async (req, res) => {
+    const serial = String(req.query.serial || "");
+    try {
+      const pngBuffer = await captureScreenPng(serial);
+      if (pngBuffer && pngBuffer.length > 100) {
+        res.setHeader("Content-Type", "image/png");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        return res.send(pngBuffer);
+      }
+      res.status(404).json({ error: "No screen capture available for this device" });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Screen capture error" });
+    }
+  });
+
+  // 3.5 Remote Control: Resolution & Density
+  app.get("/api/devices/resolution", async (req, res) => {
+    const serial = String(req.query.serial || "");
+    try {
+      const resData = await getScreenResolution(serial);
+      res.json(resData);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to query resolution" });
+    }
+  });
+
+  // 3.6 Remote Control: Send Tap (Touch)
+  app.post("/api/devices/control/tap", async (req, res) => {
+    const { serial, x, y } = req.body;
+    if (!serial || x === undefined || y === undefined) {
+      return res.status(400).json({ error: "serial, x, and y coordinates are required" });
+    }
+    try {
+      const result = await sendRemoteTap(serial, x, y);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to send tap event" });
+    }
+  });
+
+  // 3.7 Remote Control: Send Swipe (Scroll/Gesture)
+  app.post("/api/devices/control/swipe", async (req, res) => {
+    const { serial, x1, y1, x2, y2, duration } = req.body;
+    if (!serial || x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined) {
+      return res.status(400).json({ error: "serial, start and end coordinates required" });
+    }
+    try {
+      const result = await sendRemoteSwipe(serial, x1, y1, x2, y2, duration);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to send swipe event" });
+    }
+  });
+
+  // 3.8 Remote Control: Key Event (Home, Back, Recents, Power, etc.)
+  app.post("/api/devices/control/key", async (req, res) => {
+    const { serial, keycode } = req.body;
+    if (!serial || keycode === undefined) {
+      return res.status(400).json({ error: "serial and keycode are required" });
+    }
+    try {
+      const result = await sendRemoteKey(serial, keycode);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to send key event" });
+    }
+  });
+
+  // 3.9 Remote Control: Text Input
+  app.post("/api/devices/control/text", async (req, res) => {
+    const { serial, text } = req.body;
+    if (!serial || text === undefined) {
+      return res.status(400).json({ error: "serial and text are required" });
+    }
+    try {
+      const result = await sendRemoteText(serial, String(text));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to send text input" });
+    }
+  });
+
+  // 3.10 Remote Control: Intent Quick Launch
+  app.post("/api/devices/control/intent", async (req, res) => {
+    const { serial, action, uri } = req.body;
+    if (!serial || !action) {
+      return res.status(400).json({ error: "serial and intent action are required" });
+    }
+    try {
+      const result = await sendRemoteIntent(serial, action, uri);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to send intent" });
     }
   });
 

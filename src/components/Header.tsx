@@ -9,8 +9,11 @@ import {
   RefreshCw,
   Fingerprint,
   Download,
+  Wifi,
+  TabletSmartphone
 } from "lucide-react";
 import { ForensicCase, AndroidDevice } from "../types/forensics";
+import { SocialLinks } from "./SocialLinks";
 
 interface HeaderProps {
   currentCase: ForensicCase;
@@ -20,6 +23,8 @@ interface HeaderProps {
   onOpenAi: () => void;
   onOpenLimitations: () => void;
   onOpenLinuxDownload: () => void;
+  onOpenWirelessModal?: () => void;
+  onSelectRemoteControl?: () => void;
   onVerifyIntegrity: () => void;
   isVerifying: boolean;
   integrityStatus: "VERIFIED" | "TAMPERED" | "UNCHECKED";
@@ -33,30 +38,39 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAi,
   onOpenLimitations,
   onOpenLinuxDownload,
+  onOpenWirelessModal,
+  onSelectRemoteControl,
   onVerifyIntegrity,
   isVerifying,
   integrityStatus,
 }) => {
   return (
-    <header className="border-b border-cyan-500/20 bg-[#090d16]/90 backdrop-blur-md sticky top-0 z-30 px-4 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* Brand & Tagline */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 via-purple-500/20 to-blue-500/30 border border-cyan-400/40 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-            <Fingerprint className="w-6 h-6 text-cyan-400 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-wider text-white font-mono-forensic neon-glow-cyan">
-                NEON<span className="text-cyan-400">FORENSIC</span>
-              </h1>
-              <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30">
-                v3.4.0 PRO
-              </span>
+    <header className="border-b border-cyan-500/20 bg-[#090d16]/90 backdrop-blur-md sticky top-0 z-30 px-4 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Brand & Social Badges */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 via-purple-500/20 to-blue-500/30 border border-cyan-400/40 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+              <Fingerprint className="w-6 h-6 text-cyan-400 animate-pulse" />
             </div>
-            <p className="text-xs text-slate-400 tracking-tight">
-              Authorized Android Evidence Acquisition &amp; Analysis Platform
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold tracking-wider text-white font-mono-forensic neon-glow-cyan">
+                  NEON<span className="text-cyan-400">FORENSIC</span>
+                </h1>
+                <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30">
+                  v3.5 PRO
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 tracking-tight">
+                Authorized Android Forensics &amp; Hardware Remote Controller
+              </p>
+            </div>
+          </div>
+
+          {/* Social Badges in Header */}
+          <div className="hidden xl:flex items-center pl-3 border-l border-slate-800">
+            <SocialLinks variant="compact" />
           </div>
         </div>
 
@@ -73,7 +87,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="text-[10px] text-slate-400 uppercase font-mono-forensic">
                 Active Case: {currentCase.id}
               </div>
-              <div className="text-slate-200 font-medium truncate max-w-[170px]">
+              <div className="text-slate-200 font-medium truncate max-w-[150px]">
                 {currentCase.name}
               </div>
             </div>
@@ -97,11 +111,35 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-slate-500">|</span>
                 <span className="text-cyan-300">{device.manufacturer}</span>
               </div>
-              <div className="text-slate-300 truncate max-w-[160px] text-[11px]">
+              <div className="text-slate-300 truncate max-w-[140px] text-[11px]">
                 {device.model} ({device.androidVersion.split(" ")[0]})
               </div>
             </div>
           </div>
+
+          {/* Remote Mirror Quick Link */}
+          {onSelectRemoteControl && (
+            <button
+              onClick={onSelectRemoteControl}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-rose-950/40 border border-rose-500/40 text-rose-300 hover:bg-rose-900/40 text-xs font-mono-forensic transition-all shadow-[0_0_10px_rgba(244,63,94,0.2)]"
+              title="Open Live Remote Control Panel & Screen Mirror"
+            >
+              <TabletSmartphone className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+              <span className="hidden sm:inline">REMOTE MIRROR</span>
+            </button>
+          )}
+
+          {/* Wireless Debugging Modal Trigger */}
+          {onOpenWirelessModal && (
+            <button
+              onClick={onOpenWirelessModal}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/40 text-xs font-mono-forensic transition-all shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+              title="Connect device via Wi-Fi / QR Code / IP:Port"
+            >
+              <Wifi className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden md:inline">WIRELESS</span>
+            </button>
+          )}
 
           {/* Quick Integrity Check Button */}
           <button
@@ -121,16 +159,16 @@ export const Header: React.FC<HeaderProps> = ({
             ) : (
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             )}
-            <span>
+            <span className="hidden sm:inline">
               {isVerifying
                 ? "HASHING..."
                 : integrityStatus === "VERIFIED"
                 ? "INTEGRITY OK"
-                : "VERIFY INTEGRITY"}
+                : "VERIFY"}
             </span>
           </button>
 
-          {/* Action Tools: AI, Terminal, Limitations */}
+          {/* Action Tools: AI, Terminal, Linux, Limitations */}
           <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
             <button
               onClick={onOpenAi}

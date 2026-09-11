@@ -354,3 +354,174 @@ export async function performRealAcquisition(serial: string, caseId: string, pro
     chainOfCustodyRecord: coc
   };
 }
+
+// ----------------------------------------------------------------------
+// WIRELESS DEBUGGING HELPERS
+// ----------------------------------------------------------------------
+
+export async function wirelessPair(ip: string, port: string | number, code: string) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) {
+    throw new Error("ADB binary not available on workstation.");
+  }
+  const adbCmd = binaryCheck.path;
+  const endpoint = `${ip.trim()}:${port}`;
+  try {
+    const { stdout, stderr } = await execAsync(`${adbCmd} pair ${endpoint} ${code.trim()}`, { timeout: 15000 });
+    const isSuccess = stdout.toLowerCase().includes("successfully paired") || !stderr;
+    return {
+      success: isSuccess,
+      output: stdout || stderr || `Paired with ${endpoint}`,
+      endpoint,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      output: err?.message || String(err),
+      endpoint,
+    };
+  }
+}
+
+export async function wirelessConnect(ip: string, port: string | number) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) {
+    throw new Error("ADB binary not available on workstation.");
+  }
+  const adbCmd = binaryCheck.path;
+  const endpoint = `${ip.trim()}:${port}`;
+  try {
+    const { stdout, stderr } = await execAsync(`${adbCmd} connect ${endpoint}`, { timeout: 15000 });
+    const isSuccess = stdout.toLowerCase().includes("connected to") && !stdout.toLowerCase().includes("unable");
+    return {
+      success: isSuccess,
+      output: stdout || stderr || `Connect result for ${endpoint}`,
+      endpoint,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      output: err?.message || String(err),
+      endpoint,
+    };
+  }
+}
+
+export async function wirelessDisconnect(target: string) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) {
+    throw new Error("ADB binary not available on workstation.");
+  }
+  const adbCmd = binaryCheck.path;
+  try {
+    const { stdout, stderr } = await execAsync(`${adbCmd} disconnect ${target.trim()}`, { timeout: 10000 });
+    return { success: true, output: stdout || stderr || "Disconnected" };
+  } catch (err: any) {
+    return { success: false, output: err?.message || String(err) };
+  }
+}
+
+// ----------------------------------------------------------------------
+// REMOTE CONTROL ENGINE & LIVE SCREEN CAPTURE
+// ----------------------------------------------------------------------
+
+export async function getScreenResolution(serial: string): Promise<{ width: number; height: number; density: number }> {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available || !serial || serial === "NO_DEVICE") {
+    return { width: 1080, height: 2400, density: 420 };
+  }
+  const adbCmd = binaryCheck.path;
+  let width = 1080;
+  let height = 2400;
+  let density = 420;
+
+  try {
+    const { stdout: sizeOut } = await execAsync(`${adbCmd} -s ${serial} shell wm size`);
+    const match = sizeOut.match(/Physical size:\s*(\d+)x(\d+)/i) || sizeOut.match(/(\d+)x(\d+)/);
+    if (match) {
+      width = parseInt(match[1], 10);
+      height = parseInt(match[2], 10);
+    }
+  } catch {}
+
+  try {
+    const { stdout: densOut } = await execAsync(`${adbCmd} -s ${serial} shell wm density`);
+    const densMatch = densOut.match(/Physical density:\s*(\d+)/i) || densOut.match(/(\d+)/);
+    if (densMatch) {
+      density = parseInt(densMatch[1], 10);
+    }
+  } catch {}
+
+  return { width, height, density };
+}
+
+export async function captureScreenPng(serial: string): Promise<Buffer | null> {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available || !serial || serial === "NO_DEVICE") {
+    return null;
+  }
+  const adbCmd = binaryCheck.path;
+
+  try {
+    // execFile directly with binary buffer avoids shell stdout corruptions
+    const { stdout } = await execFileAsync(adbCmd, ["-s", serial, "exec-out", "screencap", "-p"], {
+      encoding: "buffer",
+      maxBuffer: 25 * 1024 * 1024,
+      timeout: 8000,
+    });
+    if (Buffer.isBuffer(stdout) && stdout.length > 100) {
+      return stdout;
+    }
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function sendRemoteTap(serial: string, x: number, y: number) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) throw new Error("ADB unavailable");
+  const adbCmd = binaryCheck.path;
+  const safeX = Math.max(0, Math.round(x));
+  const safeY = Math.max(0, Math.round(y));
+  await execAsync(`${adbCmd} -s ${serial} shell input tap ${safeX} ${safeY}`, { timeout: 5000 });
+  return { success: true, x: safeX, y: safeY };
+}
+
+export async function sendRemoteSwipe(serial: string, x1: number, y1: number, x2: number, y2: number, duration: number = 300) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) throw new Error("ADB unavailable");
+  const adbCmd = binaryCheck.path;
+  await execAsync(
+    `${adbCmd} -s ${serial} shell input swipe ${Math.round(x1)} ${Math.round(y1)} ${Math.round(x2)} ${Math.round(y2)} ${duration}`,
+    { timeout: 6000 }
+  );
+  return { success: true };
+}
+
+export async function sendRemoteKey(serial: string, keycode: string | number) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) throw new Error("ADB unavailable");
+  const adbCmd = binaryCheck.path;
+  await execAsync(`${adbCmd} -s ${serial} shell input keyevent ${keycode}`, { timeout: 5000 });
+  return { success: true, keycode };
+}
+
+export async function sendRemoteText(serial: string, text: string) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) throw new Error("ADB unavailable");
+  const adbCmd = binaryCheck.path;
+  // Replace spaces with %s for adb shell input text
+  const safeText = text.replace(/ /g, "%s").replace(/["$`\\]/g, "");
+  await execAsync(`${adbCmd} -s ${serial} shell input text "${safeText}"`, { timeout: 5000 });
+  return { success: true };
+}
+
+export async function sendRemoteIntent(serial: string, action: string, uri?: string) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) throw new Error("ADB unavailable");
+  const adbCmd = binaryCheck.path;
+  const uriArg = uri ? `-d "${uri.replace(/"/g, "")}"` : "";
+  await execAsync(`${adbCmd} -s ${serial} shell am start -a ${action} ${uriArg}`, { timeout: 6000 });
+  return { success: true };
+}

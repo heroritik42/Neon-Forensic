@@ -101,15 +101,17 @@ INSTALL_DIR=$(pwd)
 DESKTOP_DIR="$HOME/.local/share/applications"
 mkdir -p "$DESKTOP_DIR"
 
+chmod +x "$INSTALL_DIR/scripts/launch.sh" || true
+
 cat << EOF > "$DESKTOP_DIR/neon-forensic.desktop"
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=NEON FORENSIC
 Comment=Authorized Android Evidence Acquisition & Analysis Platform
-Exec=bash -c "cd '$INSTALL_DIR' && npm start"
+Exec=bash -c "$INSTALL_DIR/scripts/launch.sh"
 Icon=utilities-terminal
-Terminal=true
+Terminal=false
 Categories=Development;Security;System;Forensics;
 Keywords=Android;Forensics;ADB;Acquisition;Evidence;
 StartupNotify=true

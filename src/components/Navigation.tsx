@@ -2,6 +2,7 @@ import React from "react";
 import {
   LayoutDashboard,
   Smartphone,
+  TabletSmartphone,
   DownloadCloud,
   FolderTree,
   MessageSquare,
@@ -14,10 +15,12 @@ import {
   Link2,
   GitCompare,
 } from "lucide-react";
+import { SocialLinks } from "./SocialLinks";
 
 export type NavTab =
   | "DASHBOARD"
   | "DEVICES"
+  | "REMOTE_CONTROL"
   | "ACQUISITION"
   | "EVIDENCE"
   | "ARTIFACTS"
@@ -58,6 +61,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   }> = [
     { id: "DASHBOARD", label: "Dashboard", icon: LayoutDashboard },
     { id: "DEVICES", label: "Device & ADB", icon: Smartphone },
+    { id: "REMOTE_CONTROL", label: "Remote Control & Mirror", icon: TabletSmartphone, color: "text-rose-400" },
     { id: "ACQUISITION", label: "Acquisition", icon: DownloadCloud, color: "text-cyan-400" },
     { id: "EVIDENCE", label: "Evidence Files", icon: FolderTree, badge: counts.evidenceFiles },
     { id: "ARTIFACTS", label: "Artifacts (SMS/Calls)", icon: MessageSquare, badge: counts.sms + counts.contacts + counts.calls },
@@ -116,12 +120,16 @@ export const Navigation: React.FC<NavigationProps> = ({
         </nav>
       </div>
 
-      {/* Forensic Principle Reminder Box */}
-      <div className="mt-4 p-3 rounded-md bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed font-mono-forensic">
-        <div className="text-[10px] text-cyan-400 font-bold tracking-wider uppercase mb-1">
-          Forensic Integrity
+      {/* Social Media Links & Forensic Integrity Box */}
+      <div className="mt-4 space-y-3 pt-3 border-t border-slate-800/80">
+        <SocialLinks variant="sidebar" />
+
+        <div className="p-2.5 rounded-md bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed font-mono-forensic">
+          <div className="text-[10px] text-cyan-400 font-bold tracking-wider uppercase mb-1">
+            Forensic Integrity
+          </div>
+          Pristine write-block active. All operations applied on certified working copies.
         </div>
-        Pristine write-block active. All operations applied on certified working copies.
       </div>
     </aside>
   );
