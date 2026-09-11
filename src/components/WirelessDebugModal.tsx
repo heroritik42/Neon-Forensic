@@ -13,7 +13,8 @@ import {
   Unplug,
   Radio,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Terminal
 } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -33,7 +34,10 @@ export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
   // Code Pairing fields (Android 11+)
   const [pairIp, setPairIp] = useState("192.168.1.");
   const [pairPort, setPairPort] = useState("37000");
+  const [connectPortVal, setConnectPortVal] = useState("");
   const [pairCode, setPairCode] = useState("");
+  const [isScanningMdns, setIsScanningMdns] = useState(false);
+  const [discoveredMdnsList, setDiscoveredMdnsList] = useState<Array<{ ip: string; port: number; service: string; raw: string }>>([]);
 
   // Direct IP connect fields
   const [connectIp, setConnectIp] = useState("192.168.1.");
@@ -85,7 +89,7 @@ export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
   const handlePairWithCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pairIp.trim() || !pairPort.trim() || !pairCode.trim()) {
-      setStatusMessage({ type: "error", text: "Please enter Target IP, Port, and 6-digit pairing code." });
+      setStatusMessage({ type: "error", text: "Please enter Target IP, Pairing Port, and 6-digit pairing code." });
       return;
     }
 
@@ -99,7 +103,8 @@ export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ip: pairIp.trim(),
-          port: pairPort.trim(),
+          pairingPort: pairPort.trim(),
+          connectPort: connectPortVal.trim() || undefined,
           code: pairCode.trim(),
         }),
       });
@@ -109,17 +114,79 @@ export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
       if (data.success) {
         setStatusMessage({
           type: "success",
-          text: `Successfully paired & connected to ${data.endpoint || pairIp}! Device is now ready for inspection.`,
+          text: `Successfully paired & connected to ${data.endpoint || pairIp}! Device is now fully active in the application.`,
         });
         if (onDeviceConnected) onDeviceConnected();
       } else {
         setStatusMessage({
           type: "error",
-          text: `Pairing failed: ${data.output || data.error || "Device refused connection."}`,
+          text: `Pairing result: ${data.output || data.error || "Device refused connection. Check if IP/Port changed on phone."}`,
         });
       }
     } catch (err: any) {
       setStatusMessage({ type: "error", text: err?.message || "Failed to reach workstation ADB server." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Discover devices on Wi-Fi via mDNS
+  const handleDiscoverMdns = async () => {
+    setIsScanningMdns(true);
+    setStatusMessage({ type: "info", text: "Querying ADB mDNS services on local network..." });
+    try {
+      const res = await fetch("/api/devices/mdns");
+      const data = await res.json();
+      if (data.services && Array.isArray(data.services) && data.services.length > 0) {
+        setDiscoveredMdnsList(data.services);
+        const first = data.services[0];
+        setPairIp(first.ip);
+        setConnectIp(first.ip);
+        if (first.service === "TLS_CONNECT") {
+          setConnectPortVal(String(first.port));
+          setConnectPort(String(first.port));
+        } else if (first.service === "TLS_PAIRING") {
+          setPairPort(String(first.port));
+        }
+        setStatusMessage({
+          type: "success",
+          text: `Discovered Android wireless target at ${first.ip}:${first.port} (${first.service})! Auto-filled fields.`
+        });
+      } else {
+        setStatusMessage({
+          type: "info",
+          text: "No mDNS broadcast detected yet. Ensure Wireless Debugging is toggled ON on your phone."
+        });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: "error", text: "mDNS query failed: " + err.message });
+    } finally {
+      setIsScanningMdns(false);
+    }
+  };
+
+  // 1-Click Sync with devices already paired or connected in Kali Terminal
+  const handleSyncKaliTerminal = async () => {
+    setIsSubmitting(true);
+    setStatusMessage({ type: "info", text: "Syncing with Kali Linux ADB daemon and refreshing endpoints..." });
+    try {
+      const res = await fetch("/api/devices/restart-adb", { method: "POST" });
+      const data = await res.json();
+      setConsoleOutput(data.logs?.join("\n") || "Synced with host ADB.");
+      if (data.devices && data.devices.length > 0) {
+        setStatusMessage({
+          type: "success",
+          text: `Found ${data.devices.length} active device(s) from Kali Linux host! Linked successfully.`
+        });
+        if (onDeviceConnected) onDeviceConnected();
+      } else {
+        setStatusMessage({
+          type: "info",
+          text: "Host ADB restarted. If you ran 'adb pair' in terminal, run 'adb connect <IP>:<PORT>' in terminal or connect tab."
+        });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: "error", text: err.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -265,74 +332,140 @@ export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
 
           {/* TAB 1: CODE PAIRING */}
           {mode === "CODE_PAIR" && (
-            <form onSubmit={handlePairWithCode} className="space-y-3.5">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-mono-forensic text-slate-400 uppercase tracking-wider mb-1">
-                    Device IP Address (from phone)
-                  </label>
-                  <input
-                    type="text"
-                    value={pairIp}
-                    onChange={(e) => setPairIp(e.target.value)}
-                    placeholder="e.g. 192.168.1.104"
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono-forensic text-xs focus:outline-none focus:border-cyan-400"
-                    required
-                  />
+            <div className="space-y-4">
+              {/* Quick Action Tools */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                <span className="text-[11px] font-mono-forensic text-slate-400">Quick Tools:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDiscoverMdns}
+                    disabled={isScanningMdns}
+                    className="px-2.5 py-1 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-[11px] font-mono-forensic hover:bg-cyan-900 flex items-center gap-1 transition-all"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isScanningMdns ? "animate-spin text-cyan-400" : ""}`} />
+                    <span>Auto-Detect Wi-Fi (mDNS)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSyncKaliTerminal}
+                    disabled={isSubmitting}
+                    className="px-2.5 py-1 rounded bg-purple-950 border border-purple-500/40 text-purple-300 text-[11px] font-mono-forensic hover:bg-purple-900 flex items-center gap-1 transition-all"
+                  >
+                    <Terminal className="w-3 h-3" />
+                    <span>Sync with Kali Terminal ADB</span>
+                  </button>
                 </div>
+              </div>
+
+              {discoveredMdnsList.length > 0 && (
+                <div className="p-2 rounded bg-cyan-950/40 border border-cyan-500/30 text-xs">
+                  <span className="text-cyan-400 font-mono-forensic text-[11px] font-bold">Detected Services: </span>
+                  {discoveredMdnsList.map((srv, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setPairIp(srv.ip);
+                        setConnectIp(srv.ip);
+                        if (srv.service === "TLS_CONNECT") {
+                          setConnectPortVal(String(srv.port));
+                          setConnectPort(String(srv.port));
+                        } else {
+                          setPairPort(String(srv.port));
+                        }
+                      }}
+                      className="inline-block m-1 px-2 py-0.5 rounded bg-cyan-900/60 hover:bg-cyan-800 text-cyan-200 font-mono-forensic text-[10px]"
+                    >
+                      {srv.ip}:{srv.port} ({srv.service})
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <form onSubmit={handlePairWithCode} className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-1">
+                    <label className="block text-[11px] font-mono-forensic text-slate-400 uppercase tracking-wider mb-1">
+                      Phone IP Address
+                    </label>
+                    <input
+                      type="text"
+                      value={pairIp}
+                      onChange={(e) => setPairIp(e.target.value)}
+                      placeholder="e.g. 192.168.1.104"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono-forensic text-xs focus:outline-none focus:border-cyan-400"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono-forensic text-slate-400 uppercase tracking-wider mb-1">
+                      Pairing Port (Popup)
+                    </label>
+                    <input
+                      type="text"
+                      value={pairPort}
+                      onChange={(e) => setPairPort(e.target.value)}
+                      placeholder="e.g. 37829"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono-forensic text-xs focus:outline-none focus:border-cyan-400"
+                      required
+                    />
+                    <span className="text-[10px] text-slate-500 font-mono-forensic">From "Pair with code" popup</span>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono-forensic text-slate-400 uppercase tracking-wider mb-1">
+                      Connect Port (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={connectPortVal}
+                      onChange={(e) => setConnectPortVal(e.target.value)}
+                      placeholder="e.g. 41029 (from main Wi-Fi screen)"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono-forensic text-xs focus:outline-none focus:border-cyan-400"
+                    />
+                    <span className="text-[10px] text-slate-500 font-mono-forensic">Auto-detected if empty</span>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-[11px] font-mono-forensic text-slate-400 uppercase tracking-wider mb-1">
-                    Pairing Port
+                    6-Digit Wi-Fi Pairing Code (shown on phone dialog)
                   </label>
                   <input
                     type="text"
-                    value={pairPort}
-                    onChange={(e) => setPairPort(e.target.value)}
-                    placeholder="e.g. 37829"
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono-forensic text-xs focus:outline-none focus:border-cyan-400"
+                    value={pairCode}
+                    onChange={(e) => setPairCode(e.target.value)}
+                    placeholder="e.g. 849201"
+                    maxLength={6}
+                    className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-cyan-500/50 text-cyan-300 font-mono-forensic text-base tracking-widest text-center font-bold focus:outline-none focus:border-cyan-400"
                     required
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-[11px] font-mono-forensic text-slate-400 uppercase tracking-wider mb-1">
-                  6-Digit Wi-Fi Pairing Code (shown on phone dialog)
-                </label>
-                <input
-                  type="text"
-                  value={pairCode}
-                  onChange={(e) => setPairCode(e.target.value)}
-                  placeholder="e.g. 849201"
-                  maxLength={6}
-                  className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-cyan-500/50 text-cyan-300 font-mono-forensic text-base tracking-widest text-center font-bold focus:outline-none focus:border-cyan-400"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <div className="text-[11px] text-slate-500 font-mono-forensic">
-                  Executes: <code>adb pair {pairIp || "IP"}:{pairPort || "PORT"} {pairCode || "CODE"}</code>
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-[11px] text-slate-500 font-mono-forensic">
+                    Executes: <code>adb pair {pairIp || "IP"}:{pairPort || "PORT"} {pairCode || "CODE"}</code>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-cyan-500 text-slate-950 font-mono-forensic font-bold text-xs hover:bg-cyan-400 transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)] disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>PAIRING &amp; CONNECTING...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Wifi className="w-3.5 h-3.5" />
+                        <span>PAIR &amp; CONNECT DEVICE</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-cyan-500 text-slate-950 font-mono-forensic font-bold text-xs hover:bg-cyan-400 transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)] disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>PAIRING &amp; CONNECTING...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Wifi className="w-3.5 h-3.5" />
-                      <span>PAIR &amp; CONNECT DEVICE</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           )}
 
           {/* TAB 2: QR CODE PAIRING */}

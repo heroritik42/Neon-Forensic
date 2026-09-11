@@ -60,25 +60,44 @@ export async function getConnectedAdbDevices() {
 
   try {
     const { stdout } = await execAsync(`${adbCmd} devices -l`);
-    const lines = stdout.trim().split("\n").slice(1); // skip "List of devices attached"
+    const rawLines = stdout.trim().split("\n");
+
+    // Strictly skip daemon start notices like:
+    // * daemon not running; starting now at tcp:5037
+    // * daemon started successfully
+    // List of devices attached
+    const listHeaderIdx = rawLines.findIndex((l) => l.includes("List of devices attached"));
+    const lines = listHeaderIdx !== -1 ? rawLines.slice(listHeaderIdx + 1) : rawLines;
 
     const devices = [];
 
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
+      // Skip comments or daemon notices
+      if (trimmed.startsWith("*") || trimmed.toLowerCase().includes("daemon") || trimmed.toLowerCase().includes("list of devices")) {
+        continue;
+      }
 
       const parts = trimmed.split(/\s+/);
+      if (parts.length < 2) continue;
+
       const serial = parts[0];
-      const state = parts[1]; // "device", "unauthorized", "offline", "no permissions"
+      const state = parts[1]; // "device", "unauthorized", "offline", "no" (from "no permissions")
+
+      let adbState = "UNAUTHORIZED";
+      if (state === "device") adbState = "CONNECTED";
+      else if (state === "unauthorized") adbState = "UNAUTHORIZED";
+      else if (state === "offline") adbState = "OFFLINE";
+      else if (state === "no" || trimmed.includes("no permissions")) adbState = "NO_PERMISSIONS";
 
       const deviceData: any = {
         serial,
-        adbState: state === "device" ? "CONNECTED" : state === "unauthorized" ? "UNAUTHORIZED" : state === "offline" ? "OFFLINE" : "UNAUTHORIZED",
-        rawState: state,
-        model: "Android Device",
+        adbState,
+        rawState: trimmed.includes("no permissions") ? "no permissions" : state,
+        model: serial.includes(":") ? "Android over Wi-Fi" : "Android Device",
         manufacturer: "Android",
-        marketName: "Target Device",
+        marketName: serial.includes(":") ? `Wireless Device (${serial})` : "Target Device",
         androidVersion: "Unknown",
         sdkVersion: 0,
         securityPatch: "Unknown",
@@ -106,9 +125,9 @@ export async function getConnectedAdbDevices() {
       if (state === "device") {
         try {
           const [getpropRes, batteryRes, enforceRes] = await Promise.allSettled([
-            execAsync(`${adbCmd} -s ${serial} shell getprop`),
-            execAsync(`${adbCmd} -s ${serial} shell dumpsys battery`),
-            execAsync(`${adbCmd} -s ${serial} shell getenforce`)
+            execAsync(`${adbCmd} -s ${serial} shell getprop`, { timeout: 6000 }),
+            execAsync(`${adbCmd} -s ${serial} shell dumpsys battery`, { timeout: 4000 }),
+            execAsync(`${adbCmd} -s ${serial} shell getenforce`, { timeout: 3000 })
           ]);
 
           if (getpropRes.status === "fulfilled") {
@@ -153,21 +172,136 @@ export async function getConnectedAdbDevices() {
       devices.push(deviceData);
     }
 
+    // Check USB physical hardware bus if 0 ADB devices found
+    let usbHardware = { detected: false, info: "", vendor: "" };
+    if (devices.length === 0) {
+      usbHardware = await checkUsbHardwareBus();
+    }
+
     return {
       adbInstalled: true,
       devices,
       count: devices.length,
-      binaryPath: adbCmd
+      binaryPath: adbCmd,
+      usbHardware
     };
   } catch (err: any) {
+    const usbHardware = await checkUsbHardwareBus();
     return {
       adbInstalled: true,
       devices: [],
       error: `ADB command error: ${err?.message || err}`,
+      usbHardware,
       troubleshooting: [
         "Check if adb server is running. Try: adb kill-server && adb start-server",
         "Verify USB permissions: On Linux, ensure 51-android.rules is installed."
       ]
+    };
+  }
+}
+
+// Check if any Android phone is physically plugged into USB via lsusb
+export async function checkUsbHardwareBus(): Promise<{ detected: boolean; info: string; vendor: string }> {
+  try {
+    const { stdout } = await execAsync("lsusb", { timeout: 4000 });
+    const lines = stdout.split("\n");
+
+    const phoneVendors = [
+      { id: "18d1", name: "Google / Pixel" },
+      { id: "04e8", name: "Samsung" },
+      { id: "2717", name: "Xiaomi / Redmi / Poco" },
+      { id: "22d9", name: "Oppo / Realme" },
+      { id: "2a70", name: "OnePlus" },
+      { id: "2d95", name: "Vivo / iQOO" },
+      { id: "12d1", name: "Huawei / Honor" },
+      { id: "22b8", name: "Motorola" },
+      { id: "0fce", name: "Sony Xperia" },
+      { id: "1004", name: "LG Electronics" },
+      { id: "0e8d", name: "MediaTek Device" },
+      { id: "05c6", name: "Qualcomm Device" },
+      { id: "0b05", name: "ASUS ROG / Zenfone" },
+      { id: "1782", name: "Spreadtrum / Unisoc" },
+      { id: "2a45", name: "Meizu" }
+    ];
+
+    for (const line of lines) {
+      for (const vendor of phoneVendors) {
+        if (line.toLowerCase().includes(`:${vendor.id.toLowerCase()}`) || line.toLowerCase().includes(vendor.name.toLowerCase())) {
+          return {
+            detected: true,
+            vendor: vendor.name,
+            info: line.trim()
+          };
+        }
+      }
+      if (line.toLowerCase().includes("android") || line.toLowerCase().includes("phone")) {
+        return {
+          detected: true,
+          vendor: "Android Phone",
+          info: line.trim()
+        };
+      }
+    }
+  } catch {}
+  return { detected: false, info: "", vendor: "" };
+}
+
+// 1-Click ADB Server Restart & USB Reconnect Handshake
+export async function restartAndFixAdb(): Promise<{ success: boolean; logs: string[]; devices: any[]; count: number }> {
+  const binaryCheck = await checkAdbBinary();
+  const adbCmd = binaryCheck.available ? binaryCheck.path : "adb";
+  const logs: string[] = [];
+
+  try {
+    // 1. Kill any hung or zombie adb daemon
+    try {
+      await execAsync(`${adbCmd} kill-server`, { timeout: 6000 });
+      logs.push("Killed existing ADB daemon.");
+    } catch {}
+
+    // 2. Start fresh daemon
+    try {
+      await execAsync(`${adbCmd} start-server`, { timeout: 10000 });
+      logs.push("Started fresh ADB daemon.");
+    } catch (e: any) {
+      logs.push(`ADB start notice: ${e.message}`);
+    }
+
+    // 3. Force ADB to re-send RSA authorization challenge to the phone
+    try {
+      await execAsync(`${adbCmd} reconnect`, { timeout: 6000 });
+      logs.push("Sent 'adb reconnect' to trigger RSA approval dialog on phone screen.");
+    } catch {}
+
+    try {
+      await execAsync(`${adbCmd} reconnect offline`, { timeout: 6000 });
+    } catch {}
+
+    // 4. Reload udev rules if available
+    try {
+      await execAsync("udevadm control --reload-rules || true", { timeout: 4000 });
+      logs.push("Reloaded Linux udev subsystem rules.");
+    } catch {}
+
+    // Wait a brief moment for USB bus handshake
+    await new Promise((r) => setTimeout(r, 1200));
+
+    // 5. Query devices
+    const refreshed = await getConnectedAdbDevices();
+    logs.push(`Scan complete: Found ${refreshed.devices.length} device(s).`);
+
+    return {
+      success: true,
+      logs,
+      devices: refreshed.devices,
+      count: refreshed.devices.length
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      logs: [...logs, `Error: ${err?.message || err}`],
+      devices: [],
+      count: 0
     };
   }
 }
@@ -359,19 +493,99 @@ export async function performRealAcquisition(serial: string, caseId: string, pro
 // WIRELESS DEBUGGING HELPERS
 // ----------------------------------------------------------------------
 
-export async function wirelessPair(ip: string, port: string | number, code: string) {
+export async function discoverMdnsServices(): Promise<Array<{ ip: string; port: number; service: string; raw: string }>> {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) return [];
+  const adbCmd = binaryCheck.path;
+  try {
+    const { stdout } = await execAsync(`${adbCmd} mdns services`, { timeout: 4000 });
+    const lines = stdout.split("\n");
+    const discovered: Array<{ ip: string; port: number; service: string; raw: string }> = [];
+    for (const line of lines) {
+      const match = line.match(/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+)/);
+      if (match) {
+        discovered.push({
+          ip: match[1],
+          port: parseInt(match[2], 10),
+          service: line.includes("_adb-tls-connect") ? "TLS_CONNECT" : line.includes("_adb-tls-pairing") ? "TLS_PAIRING" : "TCP",
+          raw: line.trim()
+        });
+      }
+    }
+    return discovered;
+  } catch {
+    return [];
+  }
+}
+
+export async function wirelessPair(ip: string, pairingPort: string | number, code: string, connectPort?: string | number) {
   const binaryCheck = await checkAdbBinary();
   if (!binaryCheck.available) {
     throw new Error("ADB binary not available on workstation.");
   }
   const adbCmd = binaryCheck.path;
-  const endpoint = `${ip.trim()}:${port}`;
+  const cleanIp = ip.trim();
+  const endpoint = `${cleanIp}:${pairingPort}`;
+
   try {
     const { stdout, stderr } = await execAsync(`${adbCmd} pair ${endpoint} ${code.trim()}`, { timeout: 15000 });
     const isSuccess = stdout.toLowerCase().includes("successfully paired") || !stderr;
+
+    if (!isSuccess) {
+      return {
+        success: false,
+        output: stdout || stderr || `Failed to pair with ${endpoint}`,
+        endpoint,
+        connected: false,
+      };
+    }
+
+    // Pairing succeeded! Now auto-connect.
+    // In Android 11+, the pairing port is different from the connect port.
+    let connectOutput = "";
+    let isConnected = false;
+
+    // 1. Try explicit connectPort if user provided one
+    if (connectPort && String(connectPort) !== String(pairingPort)) {
+      const cRes = await wirelessConnect(cleanIp, connectPort);
+      connectOutput += `\nConnect to specified port ${connectPort}: ${cRes.output}`;
+      if (cRes.success) isConnected = true;
+    }
+
+    // 2. Try mDNS discovered connect port
+    if (!isConnected) {
+      try {
+        const mdnsList = await discoverMdnsServices();
+        const connectService = mdnsList.find((s) => s.ip === cleanIp && s.service === "TLS_CONNECT");
+        if (connectService) {
+          const cRes = await wirelessConnect(cleanIp, connectService.port);
+          connectOutput += `\nAuto-connected via mDNS port ${connectService.port}: ${cRes.output}`;
+          if (cRes.success) isConnected = true;
+        }
+      } catch {}
+    }
+
+    // 3. Try standard port 5555
+    if (!isConnected) {
+      const c5555 = await wirelessConnect(cleanIp, 5555);
+      if (c5555.success) {
+        connectOutput += `\nConnected via port 5555: ${c5555.output}`;
+        isConnected = true;
+      }
+    }
+
+    // 4. Try the pairing port as fallback
+    if (!isConnected) {
+      const cPairPort = await wirelessConnect(cleanIp, pairingPort);
+      connectOutput += `\nConnect fallback (${pairingPort}): ${cPairPort.output}`;
+      if (cPairPort.success) isConnected = true;
+    }
+
     return {
-      success: isSuccess,
-      output: stdout || stderr || `Paired with ${endpoint}`,
+      success: true,
+      paired: true,
+      connected: isConnected,
+      output: `${stdout || "Successfully paired"}${connectOutput}`,
       endpoint,
     };
   } catch (err: any) {
@@ -379,6 +593,7 @@ export async function wirelessPair(ip: string, port: string | number, code: stri
       success: false,
       output: err?.message || String(err),
       endpoint,
+      connected: false,
     };
   }
 }
@@ -418,6 +633,29 @@ export async function wirelessDisconnect(target: string) {
     return { success: true, output: stdout || stderr || "Disconnected" };
   } catch (err: any) {
     return { success: false, output: err?.message || String(err) };
+  }
+}
+
+export async function switchAdbToTcpip(serial?: string, port: number = 5555) {
+  const binaryCheck = await checkAdbBinary();
+  if (!binaryCheck.available) {
+    throw new Error("ADB binary not available on workstation.");
+  }
+  const adbCmd = binaryCheck.path;
+  const targetPrefix = serial && serial !== "NO_DEVICE" ? `-s ${serial}` : "";
+  try {
+    const { stdout, stderr } = await execAsync(`${adbCmd} ${targetPrefix} tcpip ${port}`, { timeout: 10000 });
+    return {
+      success: true,
+      port,
+      output: stdout || stderr || `Switched device to TCP/IP mode on port ${port}. You can now disconnect the USB cable and connect wirelessly!`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      port,
+      output: err?.message || String(err),
+    };
   }
 }
 

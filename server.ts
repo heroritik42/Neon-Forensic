@@ -24,6 +24,9 @@ import {
   wirelessPair,
   wirelessConnect,
   wirelessDisconnect,
+  switchAdbToTcpip,
+  restartAndFixAdb,
+  discoverMdnsServices,
   getScreenResolution,
   captureScreenPng,
   sendRemoteTap,
@@ -101,28 +104,49 @@ async function startServer() {
     }
   });
 
+  // 3.0 1-Click ADB Daemon Restart & USB Subsystem Reconnect
+  app.post("/api/devices/restart-adb", async (req, res) => {
+    try {
+      const result = await restartAndFixAdb();
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to restart ADB daemon" });
+    }
+  });
+
+  // 3.0b Discover Android devices on local Wi-Fi via mDNS
+  app.get("/api/devices/mdns", async (req, res) => {
+    try {
+      const services = await discoverMdnsServices();
+      res.json({ services });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to query mDNS services" });
+    }
+  });
+
   // 3.1 Wireless Debugging: Pair with 6-digit Code (Android 11+)
   app.post("/api/devices/wireless/pair", async (req, res) => {
-    const { ip, port, code } = req.body;
-    if (!ip || !port || !code) {
-      return res.status(400).json({ error: "IP, port, and 6-digit pairing code are required" });
+    const { ip, port, pairingPort, connectPort, code } = req.body;
+    const actualPairPort = pairingPort || port;
+    if (!ip || !actualPairPort || !code) {
+      return res.status(400).json({ error: "IP, pairing port, and 6-digit pairing code are required" });
     }
     try {
-      const result = await wirelessPair(ip, port, code);
-      // If pair succeeded, automatically attempt connect
-      if (result.success) {
-        const connectRes = await wirelessConnect(ip, port);
-        return res.json({
-          success: true,
-          paired: true,
-          connected: connectRes.success,
-          output: `${result.output}\n${connectRes.output}`,
-          endpoint: result.endpoint,
-        });
-      }
+      const result = await wirelessPair(ip, actualPairPort, code, connectPort);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err?.message || "Wireless pairing failed" });
+    }
+  });
+
+  // 3.1b 1-Click USB to Wireless TCP/IP 5555 Activation
+  app.post("/api/devices/wireless/tcpip", async (req, res) => {
+    const { serial, port } = req.body;
+    try {
+      const result = await switchAdbToTcpip(serial, port ? Number(port) : 5555);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to switch ADB to TCP/IP" });
     }
   });
 

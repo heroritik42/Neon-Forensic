@@ -81,6 +81,8 @@ export default function App() {
   const [device, setDevice] = useState<AndroidDevice>(DISCONNECTED_DEVICE);
   const [detectedDevices, setDetectedDevices] = useState<AndroidDevice[]>([]);
   const [isScanningDevices, setIsScanningDevices] = useState(false);
+  const [usbHardwareNotice, setUsbHardwareNotice] = useState<{ detected: boolean; info: string; vendor: string } | null>(null);
+  const [isFixingAdb, setIsFixingAdb] = useState(false);
   const [currentTab, setCurrentTab] = useState<NavTab>("DASHBOARD");
 
   // Real Database-backed state
@@ -195,12 +197,15 @@ export default function App() {
     try {
       const res = await fetch("/api/devices");
       const data = await res.json();
+      if (data.usbHardware) {
+        setUsbHardwareNotice(data.usbHardware);
+      }
       if (data.devices && Array.isArray(data.devices)) {
         setDetectedDevices(data.devices);
         const active = data.devices.find((d: AndroidDevice) => d.adbState === "CONNECTED") || data.devices[0];
         if (active) {
           setDevice(active);
-        } else {
+        } else if (!isSampleCaseLoaded) {
           setDevice(DISCONNECTED_DEVICE);
         }
       }
@@ -213,7 +218,9 @@ export default function App() {
         command: "adb devices -l",
         result: data.devices?.length > 0 ? "SUCCESS" : "SUCCESS",
         outputSnippet: data.devices?.length > 0
-          ? `Discovered ${data.devices.length} ADB endpoint(s). Active serial: ${data.devices[0]?.serial}`
+          ? `Discovered ${data.devices.length} ADB endpoint(s). Active: ${data.devices[0]?.serial} (${data.devices[0]?.adbState})`
+          : data.usbHardware?.detected
+          ? `USB Phone detected (${data.usbHardware.vendor}) - waiting for ADB authorization.`
           : "No USB/TCP ADB devices currently connected. Waiting for target...",
       };
       setAdbLogs((prev) => [newLog, ...prev]);
@@ -223,6 +230,63 @@ export default function App() {
       setIsScanningDevices(false);
     }
   };
+
+  // 1-Click ADB Server Restart & USB Reconnection
+  const handleFixAdb = async () => {
+    setIsFixingAdb(true);
+    try {
+      const res = await fetch("/api/devices/restart-adb", { method: "POST" });
+      const data = await res.json();
+      if (data.devices && Array.isArray(data.devices)) {
+        setDetectedDevices(data.devices);
+        const active = data.devices.find((d: AndroidDevice) => d.adbState === "CONNECTED") || data.devices[0];
+        if (active) setDevice(active);
+      }
+      const newLog: AdbCommandLog = {
+        id: `LOG-${Date.now().toString().slice(-4)}`,
+        timestamp: new Date().toISOString(),
+        deviceSerial: "HOST",
+        command: "adb kill-server && adb start-server && adb reconnect",
+        result: data.success ? "SUCCESS" : "FAILED",
+        outputSnippet: data.logs?.join(" | ") || (data.success ? "ADB daemon restarted. Devices refreshed." : "ADB restart failed."),
+      };
+      setAdbLogs((prev) => [newLog, ...prev]);
+    } catch (err: any) {
+      console.error("Fix ADB error:", err);
+    } finally {
+      setIsFixingAdb(false);
+    }
+  };
+
+  // Continuous background polling every 3 seconds to auto-detect USB plug-in or terminal pairing
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      fetch("/api/devices")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && Array.isArray(data.devices)) {
+            setDetectedDevices(data.devices);
+            if (data.usbHardware) {
+              setUsbHardwareNotice(data.usbHardware);
+            }
+            if (data.devices.length > 0) {
+              setDevice((prev) => {
+                if (!prev || prev.serial === "NO_DEVICE") {
+                  return data.devices.find((d: AndroidDevice) => d.adbState === "CONNECTED") || data.devices[0];
+                }
+                const updated = data.devices.find((d: AndroidDevice) => d.serial === prev.serial);
+                return updated || prev;
+              });
+            } else if (device.serial !== "NO_DEVICE" && !isSampleCaseLoaded) {
+              setDevice(DISCONNECTED_DEVICE);
+            }
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [device.serial, isSampleCaseLoaded]);
 
   // Reset database vault to clean state
   const handleResetDatabase = async () => {
@@ -511,6 +575,9 @@ export default function App() {
               onSelectDevice={(d) => setDevice(d)}
               onOpenWirelessModal={() => setIsWirelessModalOpen(true)}
               onOpenRemoteControl={() => setCurrentTab("REMOTE_CONTROL")}
+              onFixAdb={handleFixAdb}
+              isFixingAdb={isFixingAdb}
+              usbHardwareNotice={usbHardwareNotice}
             />
           )}
 

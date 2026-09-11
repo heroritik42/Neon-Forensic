@@ -28,6 +28,9 @@ interface DeviceManagerViewProps {
   onSelectDevice?: (dev: AndroidDevice) => void;
   onOpenWirelessModal?: () => void;
   onOpenRemoteControl?: () => void;
+  onFixAdb?: () => void;
+  isFixingAdb?: boolean;
+  usbHardwareNotice?: { detected: boolean; info: string; vendor: string } | null;
 }
 
 export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
@@ -40,6 +43,9 @@ export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
   onSelectDevice,
   onOpenWirelessModal,
   onOpenRemoteControl,
+  onFixAdb,
+  isFixingAdb,
+  usbHardwareNotice,
 }) => {
   const [selectedCommand, setSelectedCommand] = useState("adb shell getprop");
   const [activeTab, setActiveTab] = useState<"PROPERTIES" | "ADB_WRAPPER" | "USB_SUBSYSTEM">("PROPERTIES");
@@ -138,6 +144,18 @@ export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
             </button>
           )}
 
+          {onFixAdb && (
+            <button
+              onClick={onFixAdb}
+              disabled={isFixingAdb}
+              className="px-3.5 py-2 rounded-lg bg-amber-950/70 hover:bg-amber-900/60 border border-amber-500/40 text-amber-300 text-xs font-mono-forensic font-bold flex items-center gap-1.5 transition-all shadow-[0_0_10px_rgba(245,158,11,0.2)]"
+              title="Restart ADB daemon, re-send RSA challenge, and reload Linux udev rules"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isFixingAdb ? "animate-spin text-amber-400" : "text-amber-400"}`} />
+              <span>{isFixingAdb ? "Fixing ADB..." : "Restart & Fix ADB"}</span>
+            </button>
+          )}
+
           {onOpenWirelessModal && (
             <button
               onClick={onOpenWirelessModal}
@@ -160,27 +178,72 @@ export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
         </div>
       </div>
 
+      {/* Hardware Phone Detected on USB, but ADB not communicating */}
+      {usbHardwareNotice && usbHardwareNotice.detected && !isConnected && (
+        <div className="p-4 rounded-xl bg-cyan-950/50 border border-cyan-500/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-cyan-200 text-xs font-mono-forensic shadow-[0_0_20px_rgba(6,182,212,0.2)]">
+          <div className="flex items-start gap-3">
+            <Usb className="w-6 h-6 text-cyan-400 shrink-0 mt-0.5 animate-pulse" />
+            <div>
+              <div className="font-bold text-sm text-cyan-300 flex items-center gap-2">
+                <span>PHYSICAL PHONE DETECTED ON USB: {usbHardwareNotice.vendor}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900/80 text-cyan-300 border border-cyan-500/40 font-bold uppercase">Hardware Plugged In</span>
+              </div>
+              <p className="mt-1 text-slate-300 text-[11px] leading-relaxed">
+                Workstation detected USB bus connection, but ADB daemon has not authenticated yet.
+              </p>
+              <ul className="list-disc list-inside mt-1.5 space-y-1 text-slate-400 text-[11px]">
+                <li>Swipe down phone notifications and switch USB mode from &quot;Charge Only&quot; to <strong className="text-slate-200">&quot;File Transfer (MTP)&quot;</strong>.</li>
+                <li>Unlock phone screen and look for the <strong className="text-cyan-300">&quot;Allow USB debugging?&quot;</strong> popup, check &quot;Always allow&quot; and tap &quot;Allow&quot;.</li>
+                <li>Ensure Developer Options &gt; USB Debugging is toggled ON.</li>
+              </ul>
+            </div>
+          </div>
+          {onFixAdb && (
+            <button
+              onClick={onFixAdb}
+              disabled={isFixingAdb}
+              className="shrink-0 px-4 py-2.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+            >
+              <RotateCcw className={`w-4 h-4 ${isFixingAdb ? "animate-spin" : ""}`} />
+              <span>{isFixingAdb ? "Fixing ADB..." : "Restart ADB & Reconnect"}</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Warning Banner if UNAUTHORIZED */}
       {isUnauthorized && (
-        <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/50 flex items-start gap-3 text-amber-200 text-xs leading-relaxed font-mono-forensic shadow-[0_0_15px_rgba(245,158,11,0.15)]">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div>
-            <div className="font-bold text-sm text-amber-300">ACTION REQUIRED ON PHONE: USB DEBUGGING PROMPT</div>
-            <p className="mt-1">
-              Unlock the device display and locate the "Allow USB debugging?" dialog. Check the box "Always allow from this computer" and tap "Allow". Then click "Scan USB Bus" above.
-            </p>
+        <div className="p-4 rounded-xl bg-amber-950/50 border border-amber-500/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-amber-200 text-xs leading-relaxed font-mono-forensic shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-sm text-amber-300">ACTION REQUIRED ON PHONE: RSA AUTHORIZATION DIALOG</div>
+              <p className="mt-1">
+                The device is connected via USB/Wi-Fi, but authorization is pending. Unlock the phone display and tap <strong className="text-amber-300">&quot;Allow&quot;</strong> on the USB debugging prompt (check &quot;Always allow from this computer&quot;).
+              </p>
+            </div>
           </div>
+          {onFixAdb && (
+            <button
+              onClick={onFixAdb}
+              disabled={isFixingAdb}
+              className="shrink-0 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-2 transition-all"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isFixingAdb ? "animate-spin" : ""}`} />
+              <span>Re-trigger RSA Dialog</span>
+            </button>
+          )}
         </div>
       )}
 
       {/* Notice if DISCONNECTED */}
-      {!isConnected && !isUnauthorized && (
+      {!isConnected && !isUnauthorized && (!usbHardwareNotice || !usbHardwareNotice.detected) && (
         <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex items-start gap-3 text-slate-300 text-xs font-mono-forensic">
           <Usb className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
           <div>
-            <div className="font-bold text-white text-sm">NO PHYSICAL PHONE ATTACHED</div>
+            <div className="font-bold text-white text-sm">NO TARGET DEVICE CONNECTED</div>
             <p className="mt-1 text-slate-400">
-              Attach an Android phone via USB cable to this workstation. Enable Developer Options &amp; USB Debugging. On Linux, verify that Android udev rules are loaded (<code className="text-cyan-300">scripts/install-linux.sh</code>).
+              Attach an Android phone via USB cable to this workstation or use Wireless Debugging over Wi-Fi. On Linux, ensure Android udev rules are loaded (<code className="text-cyan-300">sudo cp scripts/51-android.rules /etc/udev/rules.d/</code>).
             </p>
           </div>
         </div>
