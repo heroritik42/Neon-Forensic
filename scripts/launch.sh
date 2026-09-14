@@ -30,6 +30,9 @@ echo -e "  ${N_CYAN}⚡  ${BOLD}${N_CYAN}Neon ${N_PINK}Forensic ${N_YELLOW}by ${
 echo -e "  ${N_PURPLE}▶  ${N_CYAN}Launching Native Linux GUI & ADB Engine  ${N_PURPLE}◀${NC}"
 echo -e "  ${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${N_PINK}═${N_PURPLE}═${N_BLUE}═${N_CYAN}═${N_GREEN}═${N_YELLOW}═${N_ORANGE}═${NC}\n"
 
+# Ensure evidence vault permissions
+chmod -R 777 evidence_vault 2>/dev/null || true
+
 # Check if server is already running on port 3000
 if curl -s http://localhost:3000/api/devices > /dev/null 2>&1; then
   echo "[✓] NEON FORENSIC backend server is already running on http://localhost:3000"

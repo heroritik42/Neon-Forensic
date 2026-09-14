@@ -277,9 +277,17 @@ export async function getConnectedAdbDevices() {
     if (devices.length > 0) {
       for (const deviceData of devices) {
         if (deviceData.adbState === "CONNECTED") {
-          await enrichDeviceProperties(deviceData, adbCmd);
+          try {
+            await enrichDeviceProperties(deviceData, adbCmd);
+          } catch (propErr: any) {
+            // Ignore property enrichment timeouts
+          }
         }
-        saveDevice(deviceData);
+        try {
+          saveDevice(deviceData);
+        } catch (dbErr: any) {
+          // Never let SQLite readonly or locked database errors block device detection
+        }
       }
 
       return {

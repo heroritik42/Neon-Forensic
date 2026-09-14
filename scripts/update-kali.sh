@@ -87,7 +87,11 @@ $SUDO udevadm control --reload-rules || true
 $SUDO udevadm trigger || true
 echo -e "${GREEN}✓ USB udev permissions updated.${NC}"
 
-echo -e "\n${CYAN}[3/5] Restarting ADB daemon to apply fresh handshake...${NC}"
+echo -e "\n${CYAN}[3/5] Restarting ADB daemon & setting evidence vault permissions...${NC}"
+$SUDO chmod -R 777 evidence_vault 2>/dev/null || true
+if [ -n "$SUDO_USER" ]; then
+  $SUDO chown -R "$SUDO_USER:$SUDO_USER" evidence_vault 2>/dev/null || true
+fi
 adb kill-server || true
 adb start-server || true
 adb reconnect || true
