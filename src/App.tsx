@@ -79,8 +79,8 @@ const DISCONNECTED_DEVICE: AndroidDevice = {
 
 export default function App() {
   const [currentCase, setCurrentCase] = useState<ForensicCase>(INITIAL_CASE);
-  const [device, setDevice] = useState<AndroidDevice>(INITIAL_DEVICE);
-  const [detectedDevices, setDetectedDevices] = useState<AndroidDevice[]>([INITIAL_DEVICE]);
+  const [device, setDevice] = useState<AndroidDevice>(DISCONNECTED_DEVICE);
+  const [detectedDevices, setDetectedDevices] = useState<AndroidDevice[]>([]);
   const [isScanningDevices, setIsScanningDevices] = useState(false);
   const [usbHardwareNotice, setUsbHardwareNotice] = useState<{ detected: boolean; info: string; vendor: string } | null>(null);
   const [isFixingAdb, setIsFixingAdb] = useState(false);
@@ -297,8 +297,7 @@ export default function App() {
     }
   };
 
-  // Continuous background polling to auto-detect USB plug-in or terminal pairing
-  // Stable dependency array [] and no sudden disconnects to prevent layout jumping
+  // Continuous background polling to auto-detect USB plug-in or wireless pairing from Kali
   useEffect(() => {
     const pollInterval = setInterval(() => {
       fetch("/api/devices")
@@ -311,20 +310,26 @@ export default function App() {
             }
             if (data.devices.length > 0) {
               setDevice((prev) => {
-                if (!prev || prev.serial === "NO_DEVICE") {
-                  return data.devices.find((d: AndroidDevice) => d.adbState === "CONNECTED") || data.devices[0];
-                }
+                // If previous device was active and still present, update its properties
                 const updated = data.devices.find((d: AndroidDevice) => d.serial === prev.serial);
-                return updated || prev;
+                if (updated) return updated;
+                // Otherwise auto-select the active connected device from Kali / ADB
+                const active = data.devices.find((d: AndroidDevice) => d.adbState === "CONNECTED") || data.devices[0];
+                return active;
+              });
+            } else if (!isSampleCaseLoaded) {
+              setDevice((prev) => {
+                if (prev.serial === "NO_DEVICE") return prev; // Avoid unnecessary re-renders
+                return DISCONNECTED_DEVICE;
               });
             }
           }
         })
         .catch(() => {});
-    }, 4000);
+    }, 3000);
 
     return () => clearInterval(pollInterval);
-  }, []);
+  }, [isSampleCaseLoaded]);
 
   // Reset database vault to clean state
   const handleResetDatabase = async () => {
@@ -845,6 +850,8 @@ export default function App() {
         isOpen={isWirelessModalOpen}
         onClose={() => setIsWirelessModalOpen(false)}
         onDeviceConnected={handleScanDevices}
+        device={device}
+        detectedDevices={detectedDevices}
       />
     </div>
   );

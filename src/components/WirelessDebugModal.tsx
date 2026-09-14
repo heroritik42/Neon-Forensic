@@ -14,20 +14,26 @@ import {
   Radio,
   ExternalLink,
   ChevronRight,
-  Terminal
+  Terminal,
+  Activity
 } from "lucide-react";
 import QRCode from "qrcode";
+import { AndroidDevice } from "../types/forensics";
 
 interface WirelessDebugModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDeviceConnected?: () => void;
+  device?: AndroidDevice;
+  detectedDevices?: AndroidDevice[];
 }
 
 export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
   isOpen,
   onClose,
   onDeviceConnected,
+  device,
+  detectedDevices = [],
 }) => {
   const [mode, setMode] = useState<"QR_PAIR" | "CODE_PAIR" | "DIRECT_IP">("CODE_PAIR");
 
@@ -168,26 +174,23 @@ export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
   // 1-Click Sync with devices already paired or connected in Kali Terminal
   const handleSyncKaliTerminal = async () => {
     setIsSubmitting(true);
-    setStatusMessage({ type: "info", text: "Syncing with Kali Linux ADB daemon and refreshing endpoints..." });
+    setStatusMessage({ type: "info", text: "Scanning Kali Linux ADB daemon and refreshing devices..." });
     try {
-      const res = await fetch("/api/devices/kali-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
+      const res = await fetch("/api/devices/restart-adb", { method: "POST" });
       const data = await res.json();
       setConsoleOutput(data.logs?.join("\n") || "Synced with Kali ADB bridge.");
       if (data.devices && data.devices.length > 0) {
         setStatusMessage({
           type: "success",
-          text: `Found and synchronized ${data.devices.length} active device(s) from Kali Linux host! Linked successfully.`
+          text: `Found and connected ${data.devices.length} device(s) from Kali Linux host (${data.devices[0].serial})! Linked successfully.`
         });
         if (onDeviceConnected) onDeviceConnected();
       } else {
         setStatusMessage({
           type: "info",
-          text: "Host ADB synchronized. If you ran 'adb pair' in terminal, run 'adb connect <IP>:<PORT>' in terminal or connect tab."
+          text: "Host ADB refreshed (0 attached). If phone is connected in Kali terminal, run 'adb devices' in Kali to confirm it shows 'device'."
         });
+        if (onDeviceConnected) onDeviceConnected();
       }
     } catch (err: any) {
       setStatusMessage({ type: "error", text: err.message });
@@ -267,6 +270,49 @@ export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Live Target Status Banner */}
+        <div className="px-5 py-2.5 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {device && device.serial !== "NO_DEVICE" && device.adbState === "CONNECTED" ? (
+              <span className="relative flex h-3 w-3 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+              </span>
+            ) : (
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-500/60 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-mono-forensic">
+                <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Active Target:</span>
+                {device && device.serial !== "NO_DEVICE" && device.adbState === "CONNECTED" ? (
+                  <span className="text-emerald-400 font-bold truncate">
+                    {device.marketName || device.model} <span className="text-slate-400 font-normal">({device.serial})</span>
+                  </span>
+                ) : (
+                  <span className="text-amber-400 font-medium text-[11px]">
+                    No Wireless Target Attached (Ready for Pair / Connect)
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono-forensic truncate">
+                {device && device.serial !== "NO_DEVICE" && device.adbState === "CONNECTED"
+                  ? `State: CONNECTED | Android ${device.androidVersion} | Battery: ${device.batteryLevel}% | ${device.usbMode}`
+                  : "Devices connected via Kali Linux terminal or Wi-Fi will automatically sync here."}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSyncKaliTerminal}
+            disabled={isSubmitting}
+            className="shrink-0 px-3 py-1.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-xs font-mono-forensic flex items-center gap-1.5 transition-all shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+            title="Scan ADB daemon on Kali Linux"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? "animate-spin text-cyan-400" : "text-cyan-400"}`} />
+            <span>SYNC KALI ADB</span>
           </button>
         </div>
 

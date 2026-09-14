@@ -295,75 +295,7 @@ export async function getConnectedAdbDevices() {
     console.warn("ADB daemon devices scan notice:", err?.message || err);
   }
 
-  // Fallback: Check SQLite Database for active synced Kali / local devices
-  // This ensures background polling does not reset the user's active session
-  try {
-    let savedDbDevices = (getAllDevices() || []) as any[];
-    if (savedDbDevices.length === 0) {
-      const defaultTarget = {
-        serial: "39241FDJE00388",
-        model: "Pixel 8 Pro",
-        manufacturer: "Google",
-        marketName: "Google Pixel 8 Pro (husky)",
-        androidVersion: "14.0 (VanillaIceCream / API 34)",
-        sdkVersion: 34,
-        buildNumber: "UQ1A.240205.004",
-        securityPatch: "2024-05-01",
-        batteryLevel: 91,
-        isCharging: true,
-        rootStatus: "SELINUX_ENFORCING",
-        adbState: "CONNECTED",
-        usbVid: "0x18D1",
-        usbPid: "0x4EE7",
-        encryptionType: "File-Based Encryption (FBE)",
-      };
-      saveDevice(defaultTarget);
-      savedDbDevices = [defaultTarget];
-    }
-
-    if (savedDbDevices.length > 0) {
-      const formatted = savedDbDevices.map((d) => ({
-        serial: d.serial,
-        model: d.model || "Target Device",
-        manufacturer: d.manufacturer || "Samsung / Google",
-        marketName: d.market_name || `${d.manufacturer || "Android"} ${d.model || "Target"}`,
-        androidVersion: d.android_version || "14",
-        sdkVersion: d.sdk_version || 34,
-        buildNumber: d.build_number || "UKQ1.230924.001",
-        buildFingerprint: `${d.manufacturer || "Android"}/${d.model || "Device"}:14`,
-        securityPatch: d.security_patch || "2024-05-01",
-        batteryLevel: d.battery_level ?? 88,
-        batteryHealth: "Good",
-        isCharging: Boolean(d.is_charging),
-        rootStatus: d.root_status || "UNROOTED_SELINUX_ENFORCING",
-        adbState: d.adb_state || "CONNECTED",
-        usbState: "ATTACHED",
-        vendorId: d.usb_vid || "0x18D1",
-        productId: d.usb_pid || "0x4EE7",
-        usbMode: "ADB",
-        encryptionType: d.encryption_type || "File-Based Encryption (FBE)",
-        storage: {
-          totalBytes: 128000000000,
-          usedBytes: 48500000000,
-          freeBytes: 79500000000,
-          encryptionType: d.encryption_type || "File-Based Encryption (FBE)"
-        }
-      }));
-
-      return {
-        adbInstalled: true,
-        devices: formatted,
-        count: formatted.length,
-        binaryPath: binaryCheck.path,
-        serverConfig: activeAdbConfig,
-        usbHardware: { detected: true, info: "Evidence Vault Synchronized Device", vendor: formatted[0].manufacturer }
-      };
-    }
-  } catch (dbErr) {
-    console.warn("Database device query notice:", dbErr);
-  }
-
-  // If truly 0 devices, check physical USB bus
+  // If ADB daemon reports 0 devices attached
   const usbHardware = await checkUsbHardwareBus();
   return {
     adbInstalled: true,
@@ -1873,63 +1805,57 @@ export async function wirelessConnect(ip: string, port: string | number) {
   };
 
   try {
-    const { stdout, stderr } = await execAsync(`${adbCmd} connect ${endpoint}`, { timeout: 6000 });
+    const { stdout, stderr } = await execAsync(`${adbCmd} connect ${endpoint}`, { timeout: 8000 });
     const combined = `${stdout} ${stderr}`.toLowerCase();
-    const isSuccess = combined.includes("connected to") && !combined.includes("unable") && !combined.includes("failed") && !combined.includes("refused");
+    const isSuccess = (combined.includes("connected to") || combined.includes("already connected")) &&
+                      !combined.includes("unable") &&
+                      !combined.includes("failed") &&
+                      !combined.includes("refused");
 
-    saveDevice(wirelessDevice);
+    if (isSuccess) {
+      try {
+        await enrichDeviceProperties(wirelessDevice, adbCmd);
+      } catch {}
+      saveDevice(wirelessDevice);
 
-    addChainOfCustodyRecord({
-      caseId: "CASE-ACTIVE",
-      investigator: "Lead Examiner",
-      action: `Connected wireless target ${endpoint} via ADB TCP/IP bridge. State: CONNECTED.`,
-      evidenceId: endpoint
-    });
+      addChainOfCustodyRecord({
+        caseId: "CASE-ACTIVE",
+        investigator: "Lead Examiner",
+        action: `Connected wireless target ${endpoint} via ADB TCP/IP bridge. State: CONNECTED.`,
+        evidenceId: endpoint
+      });
 
-    insertTimelineEvent({
-      id: `EVT-WIFI-${Date.now()}`,
-      caseId: "CASE-ACTIVE",
-      dateTime: new Date().toISOString(),
-      type: "DEVICE",
-      eventDescription: `Wireless ADB session established with ${endpoint}.`,
-      source: "ADB TCP/IP BRIDGE",
-      device: endpoint
-    });
+      insertTimelineEvent({
+        id: `EVT-WIFI-${Date.now()}`,
+        caseId: "CASE-ACTIVE",
+        dateTime: new Date().toISOString(),
+        type: "DEVICE",
+        eventDescription: `Wireless ADB session established with ${endpoint}.`,
+        source: "ADB TCP/IP BRIDGE",
+        device: endpoint
+      });
 
-    return {
-      success: true,
-      connected: true,
-      output: stdout || stderr || `Connected to ${endpoint}. Target device active and authenticated.`,
-      endpoint,
-      device: wirelessDevice,
-    };
+      return {
+        success: true,
+        connected: true,
+        output: stdout || stderr || `Connected to ${endpoint}. Target device active and authenticated.`,
+        endpoint,
+        device: wirelessDevice,
+      };
+    } else {
+      return {
+        success: false,
+        connected: false,
+        output: (stdout || stderr || `Failed to connect to ${endpoint}`).trim(),
+        endpoint,
+      };
+    }
   } catch (err: any) {
-    // Network routing fallback (e.g. private RFC1918 LAN IP reached via workstation bridge)
-    saveDevice(wirelessDevice);
-
-    addChainOfCustodyRecord({
-      caseId: "CASE-ACTIVE",
-      investigator: "Lead Examiner",
-      action: `Synchronized and authenticated target ${endpoint} via Forensic Network Bridge.`,
-      evidenceId: endpoint
-    });
-
-    insertTimelineEvent({
-      id: `EVT-WIFI-${Date.now()}`,
-      caseId: "CASE-ACTIVE",
-      dateTime: new Date().toISOString(),
-      type: "DEVICE",
-      eventDescription: `Target ${endpoint} synchronized via Forensic Bridge. Session active.`,
-      source: "FORENSIC NETWORK BRIDGE",
-      device: endpoint
-    });
-
     return {
-      success: true,
-      connected: true,
-      output: `Connected and authenticated target [${endpoint}] via Forensic Network Bridge. Full remote control and forensic modules active.`,
+      success: false,
+      connected: false,
+      output: (err?.message || String(err)).trim(),
       endpoint,
-      device: wirelessDevice,
     };
   }
 }
