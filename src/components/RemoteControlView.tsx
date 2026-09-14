@@ -114,15 +114,33 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
     const frameUrl = `/api/devices/screen?serial=${encodeURIComponent(device.serial)}&t=${ts}`;
 
     try {
-      // Preload image off-screen before swapping DOM element to eliminate flicker and layout shift
+      // Preload and decode image off-screen before swapping DOM element to eliminate flicker and layout shift
       const img = new Image();
       img.onload = () => {
-        setActiveScreenSrc(frameUrl);
-        setRealScreenAvailable(true);
-        setCaptureError(null);
-        setLastRefreshTimestamp(ts);
-        setIsCapturing(false);
-        isRefreshingRef.current = false;
+        if (typeof img.decode === "function") {
+          img.decode().then(() => {
+            setActiveScreenSrc(frameUrl);
+            setRealScreenAvailable(true);
+            setCaptureError(null);
+            setLastRefreshTimestamp(ts);
+            setIsCapturing(false);
+            isRefreshingRef.current = false;
+          }).catch(() => {
+            setActiveScreenSrc(frameUrl);
+            setRealScreenAvailable(true);
+            setCaptureError(null);
+            setLastRefreshTimestamp(ts);
+            setIsCapturing(false);
+            isRefreshingRef.current = false;
+          });
+        } else {
+          setActiveScreenSrc(frameUrl);
+          setRealScreenAvailable(true);
+          setCaptureError(null);
+          setLastRefreshTimestamp(ts);
+          setIsCapturing(false);
+          isRefreshingRef.current = false;
+        }
       };
       img.onerror = () => {
         // Keep previous frame visible if temporary network hiccup occurs to avoid jumping
@@ -334,11 +352,11 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
           <button
             onClick={refreshScreen}
             disabled={isCapturing}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 text-xs font-mono-forensic transition-colors"
+            className="flex items-center justify-center gap-1.5 w-[96px] h-[32px] shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 text-xs font-mono-forensic transition-colors select-none"
             title="Force immediate screenshot refresh"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isCapturing ? "animate-spin text-cyan-400" : ""}`} />
-            <span>{isCapturing ? "Capturing..." : "Refresh"}</span>
+            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isCapturing ? "animate-spin text-cyan-400" : ""}`} />
+            <span className="w-14 text-center truncate select-none">{isCapturing ? "Syncing" : "Refresh"}</span>
           </button>
 
           {/* Auto refresh rate dropdown */}
@@ -360,10 +378,10 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
       </div>
 
       {/* Main Grid: Left = Phone Bezel Mirror, Right = Control Suite */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start" style={{ overflowAnchor: "none" }}>
         {/* COLUMN 1: LIVE PHONE SCREEN MIRROR & NAVIGATION BAR (5 cols on lg) */}
-        <div className="lg:col-span-5 flex flex-col items-center">
-          <div className="w-full max-w-[340px] bg-[#050811] p-3 rounded-[36px] border-4 border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.8),0_0_25px_rgba(6,182,212,0.15)] relative select-none">
+        <div className="lg:col-span-5 flex flex-col items-center self-start" style={{ contain: "layout", overflowAnchor: "none" }}>
+          <div className="w-full max-w-[320px] bg-[#050811] p-3 rounded-[32px] border-4 border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.8),0_0_25px_rgba(6,182,212,0.15)] relative select-none flex-shrink-0" style={{ contain: "paint layout" }}>
             {/* Phone Speaker & Camera Notch */}
             <div className="flex items-center justify-between px-6 pt-1 pb-2">
               <div className="text-[10px] font-mono-forensic font-bold text-slate-400">
@@ -378,26 +396,38 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
               </div>
             </div>
 
-            {/* SCREEN CANVAS AREA */}
+            {/* SCREEN CANVAS AREA - STRICT PIXEL-LOCKED DIMENSIONS TO ELIMINATE ALL LAYOUT SHIFTING */}
             <div
               ref={screenContainerRef}
               onMouseDown={handleScreenMouseDown}
               onMouseUp={handleScreenMouseUp}
-              className="relative w-full aspect-[9/19.5] min-h-[520px] max-h-[580px] rounded-[24px] overflow-hidden bg-slate-950 cursor-pointer border border-slate-800/80 group select-none"
-              style={{ overflowAnchor: "none" }}
+              className="relative w-full h-[520px] rounded-[22px] overflow-hidden bg-slate-950 cursor-pointer border border-slate-800/80 group select-none flex-shrink-0"
+              style={{
+                height: "520px",
+                minHeight: "520px",
+                maxHeight: "520px",
+                contain: "strict",
+                overflowAnchor: "none"
+              }}
               title="Click or drag anywhere on screen to touch & gesture on target phone"
             >
-              {/* If real ADB screenshot is available */}
-              {activeScreenSrc && isConnected ? (
+              {/* If real ADB screenshot is available - retain it persistently across refreshes */}
+              {activeScreenSrc ? (
                 <img
+                  key="live-android-screen-stream"
                   src={activeScreenSrc}
                   alt="Live Android Screen"
-                  className="w-full h-full object-cover select-none pointer-events-none"
+                  className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
                   draggable={false}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover"
+                  }}
                 />
               ) : (
                 /* Simulated High-Fidelity Android OS Screen */
-                <div className="w-full h-full flex flex-col justify-between p-4 bg-gradient-to-b from-[#0e1628] via-[#090e1a] to-[#04060c] text-white">
+                <div className="w-full h-full flex flex-col justify-between p-4 bg-gradient-to-b from-[#0e1628] via-[#090e1a] to-[#04060c] text-white select-none">
                   {/* Top Status & Date */}
                   <div className="text-center pt-8 space-y-1">
                     <div className="text-4xl font-extralight font-mono-forensic text-cyan-200">
@@ -511,7 +541,7 @@ export const RemoteControlView: React.FC<RemoteControlViewProps> = ({
         </div>
 
         {/* COLUMN 2: HARDWARE ACTION DECK & REMOTE SUITE (7 cols on lg) */}
-        <div className="lg:col-span-7 space-y-4" style={{ overflowAnchor: "none" }}>
+        <div className="lg:col-span-7 space-y-4 self-start" style={{ overflowAnchor: "none", contain: "layout" }}>
           {/* Action Feedback Banner - Fixed Height to prevent any layout shifting */}
           <div className="h-9 flex items-center">
             {actionFeedback ? (

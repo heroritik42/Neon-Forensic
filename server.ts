@@ -34,7 +34,11 @@ import {
   sendRemoteKey,
   sendRemoteText,
   sendRemoteIntent,
-  performForensicRecovery
+  performForensicRecovery,
+  syncFromKali,
+  getForensicDiagnostics,
+  setAdbServerConfig,
+  getAdbServerConfig
 } from "./server/adb.js";
 
 // Initialize SQLite database
@@ -179,15 +183,62 @@ async function startServer() {
     }
   });
 
-  // 3.4 Live Remote Screen Capture (PNG stream)
+  // 3.3b Kali Linux ADB Sync & Bridge
+  app.post("/api/devices/kali-sync", async (req, res) => {
+    try {
+      const result = await syncFromKali(req.body || {});
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to sync device from Kali Linux" });
+    }
+  });
+
+  // 3.3c A-to-Z Forensic & ADB Diagnostics
+  app.get("/api/devices/debug", async (req, res) => {
+    try {
+      const report = await getForensicDiagnostics();
+      res.json(report);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Diagnostics check failed" });
+    }
+  });
+
+  // 3.3d A-to-Z Automatic Self-Repair
+  app.post("/api/devices/debug/fix", async (req, res) => {
+    try {
+      const fixResult = await restartAndFixAdb();
+      const diagnostics = await getForensicDiagnostics();
+      res.json({
+        success: fixResult.success,
+        fixResult,
+        diagnostics,
+        message: fixResult.success ? "All ADB subsystems re-synchronized." : "Some subsystems require attention."
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Automatic fix failed" });
+    }
+  });
+
+  // 3.3e Remote Kali ADB Host Configuration
+  app.get("/api/devices/config-host", (req, res) => {
+    res.json(getAdbServerConfig());
+  });
+
+  app.post("/api/devices/config-host", (req, res) => {
+    const { host, port } = req.body;
+    const updated = setAdbServerConfig(host || "", port || 5037, true);
+    res.json(updated);
+  });
+
+  // 3.4 Live Remote Screen Capture (PNG / SVG stream)
   app.get("/api/devices/screen", async (req, res) => {
     const serial = String(req.query.serial || "");
     try {
-      const pngBuffer = await captureScreenPng(serial);
-      if (pngBuffer && pngBuffer.length > 100) {
-        res.setHeader("Content-Type", "image/png");
+      const captureResult = await captureScreenPng(serial);
+      if (captureResult && captureResult.buffer && captureResult.buffer.length > 50) {
+        res.setHeader("Content-Type", captureResult.mimeType || "image/png");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        return res.send(pngBuffer);
+        return res.send(captureResult.buffer);
       }
       res.status(404).json({ error: "No screen capture available for this device" });
     } catch (err: any) {

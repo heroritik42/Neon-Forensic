@@ -170,19 +170,23 @@ export const WirelessDebugModal: React.FC<WirelessDebugModalProps> = ({
     setIsSubmitting(true);
     setStatusMessage({ type: "info", text: "Syncing with Kali Linux ADB daemon and refreshing endpoints..." });
     try {
-      const res = await fetch("/api/devices/restart-adb", { method: "POST" });
+      const res = await fetch("/api/devices/kali-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
       const data = await res.json();
-      setConsoleOutput(data.logs?.join("\n") || "Synced with host ADB.");
+      setConsoleOutput(data.logs?.join("\n") || "Synced with Kali ADB bridge.");
       if (data.devices && data.devices.length > 0) {
         setStatusMessage({
           type: "success",
-          text: `Found ${data.devices.length} active device(s) from Kali Linux host! Linked successfully.`
+          text: `Found and synchronized ${data.devices.length} active device(s) from Kali Linux host! Linked successfully.`
         });
         if (onDeviceConnected) onDeviceConnected();
       } else {
         setStatusMessage({
           type: "info",
-          text: "Host ADB restarted. If you ran 'adb pair' in terminal, run 'adb connect <IP>:<PORT>' in terminal or connect tab."
+          text: "Host ADB synchronized. If you ran 'adb pair' in terminal, run 'adb connect <IP>:<PORT>' in terminal or connect tab."
         });
       }
     } catch (err: any) {

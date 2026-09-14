@@ -28,6 +28,8 @@ interface HeaderProps {
   onVerifyIntegrity: () => void;
   isVerifying: boolean;
   integrityStatus: "VERIFIED" | "TAMPERED" | "UNCHECKED";
+  onKaliSync?: () => void;
+  isSyncingKali?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -43,6 +45,8 @@ export const Header: React.FC<HeaderProps> = ({
   onVerifyIntegrity,
   isVerifying,
   integrityStatus,
+  onKaliSync,
+  isSyncingKali,
 }) => {
   return (
     <header className="border-b border-cyan-500/20 bg-[#090d16]/90 backdrop-blur-md sticky top-0 z-30 px-4 py-2">
@@ -142,6 +146,19 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Wifi className="w-3.5 h-3.5 text-cyan-400" />
               <span className="hidden md:inline">WIRELESS</span>
+            </button>
+          )}
+
+          {/* Kali Linux Direct Bridge & Sync Button */}
+          {onKaliSync && (
+            <button
+              onClick={onKaliSync}
+              disabled={isSyncingKali}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-blue-950/50 border border-blue-500/40 text-blue-300 hover:bg-blue-900/50 text-xs font-mono-forensic transition-all shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+              title="Synchronize and authenticate active Android device connected to Kali Linux"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingKali ? "animate-spin text-blue-400" : "text-blue-400"}`} />
+              <span className="hidden md:inline">{isSyncingKali ? "SYNCING KALI..." : "KALI SYNC"}</span>
             </button>
           )}
 

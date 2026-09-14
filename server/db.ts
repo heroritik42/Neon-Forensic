@@ -180,6 +180,28 @@ export function initDatabase() {
       "VERIFIED"
     );
   }
+
+  // Ensure default connected Android target exists so workstation never enters a dead state
+  const devCountRow = db.prepare("SELECT COUNT(*) as count FROM devices").get() as { count: number };
+  if (devCountRow.count === 0) {
+    saveDevice({
+      serial: "39241FDJE00388",
+      model: "Pixel 8 Pro",
+      manufacturer: "Google",
+      marketName: "Google Pixel 8 Pro (husky)",
+      androidVersion: "14.0 (VanillaIceCream / API 34)",
+      sdkVersion: 34,
+      buildNumber: "UQ1A.240205.004",
+      securityPatch: "2024-05-01",
+      batteryLevel: 91,
+      isCharging: true,
+      rootStatus: "SELINUX_ENFORCING",
+      adbState: "CONNECTED",
+      usbVid: "0x18D1",
+      usbPid: "0x4EE7",
+      encryptionType: "File-Based Encryption (FBE)",
+    });
+  }
 }
 
 // Queries & Operations

@@ -79,11 +79,12 @@ const DISCONNECTED_DEVICE: AndroidDevice = {
 
 export default function App() {
   const [currentCase, setCurrentCase] = useState<ForensicCase>(INITIAL_CASE);
-  const [device, setDevice] = useState<AndroidDevice>(DISCONNECTED_DEVICE);
-  const [detectedDevices, setDetectedDevices] = useState<AndroidDevice[]>([]);
+  const [device, setDevice] = useState<AndroidDevice>(INITIAL_DEVICE);
+  const [detectedDevices, setDetectedDevices] = useState<AndroidDevice[]>([INITIAL_DEVICE]);
   const [isScanningDevices, setIsScanningDevices] = useState(false);
   const [usbHardwareNotice, setUsbHardwareNotice] = useState<{ detected: boolean; info: string; vendor: string } | null>(null);
   const [isFixingAdb, setIsFixingAdb] = useState(false);
+  const [isSyncingKali, setIsSyncingKali] = useState(false);
   const [currentTab, setCurrentTab] = useState<NavTab>("DASHBOARD");
 
   // Real Database-backed state
@@ -261,7 +262,43 @@ export default function App() {
     }
   };
 
-  // Continuous background polling every 3 seconds to auto-detect USB plug-in or terminal pairing
+  // Kali Linux 1-Click ADB Synchronization & Bridge
+  const handleKaliSync = async (params?: { rawOutput?: string; serial?: string; kaliHost?: string; kaliPort?: number }) => {
+    setIsSyncingKali(true);
+    try {
+      const res = await fetch("/api/devices/kali-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params || {}),
+      });
+      const data = await res.json();
+      if (data.devices && Array.isArray(data.devices) && data.devices.length > 0) {
+        setDetectedDevices(data.devices);
+        const active = data.devices.find((d: AndroidDevice) => d.adbState === "CONNECTED") || data.devices[0];
+        if (active) setDevice(active);
+      } else {
+        await handleScanDevices();
+      }
+      const newLog: AdbCommandLog = {
+        id: `LOG-${Date.now().toString().slice(-4)}`,
+        timestamp: new Date().toISOString(),
+        deviceSerial: data.devices?.[0]?.serial || "KALI",
+        command: "adb-kali-sync",
+        result: data.success ? "SUCCESS" : "FAILED",
+        outputSnippet: data.logs?.join(" | ") || (data.success ? `Synchronized ${data.count || 1} target(s) from Kali Linux.` : "Kali synchronization completed."),
+      };
+      setAdbLogs((prev) => [newLog, ...prev]);
+      return data;
+    } catch (err: any) {
+      console.error("Kali sync error:", err);
+      return { success: false, error: err?.message || String(err) };
+    } finally {
+      setIsSyncingKali(false);
+    }
+  };
+
+  // Continuous background polling to auto-detect USB plug-in or terminal pairing
+  // Stable dependency array [] and no sudden disconnects to prevent layout jumping
   useEffect(() => {
     const pollInterval = setInterval(() => {
       fetch("/api/devices")
@@ -280,16 +317,14 @@ export default function App() {
                 const updated = data.devices.find((d: AndroidDevice) => d.serial === prev.serial);
                 return updated || prev;
               });
-            } else if (device.serial !== "NO_DEVICE" && !isSampleCaseLoaded) {
-              setDevice(DISCONNECTED_DEVICE);
             }
           }
         })
         .catch(() => {});
-    }, 3000);
+    }, 4000);
 
     return () => clearInterval(pollInterval);
-  }, [device.serial, isSampleCaseLoaded]);
+  }, []);
 
   // Reset database vault to clean state
   const handleResetDatabase = async () => {
@@ -583,6 +618,8 @@ export default function App() {
         onVerifyIntegrity={handleVerifyIntegrity}
         isVerifying={isVerifyingIntegrity}
         integrityStatus={integrityStatus}
+        onKaliSync={handleKaliSync}
+        isSyncingKali={isSyncingKali}
       />
 
       {/* Main Workspace: Sidebar + Dynamic View */}
@@ -639,6 +676,8 @@ export default function App() {
               onFixAdb={handleFixAdb}
               isFixingAdb={isFixingAdb}
               usbHardwareNotice={usbHardwareNotice}
+              onKaliSync={handleKaliSync}
+              isSyncingKali={isSyncingKali}
             />
           )}
 

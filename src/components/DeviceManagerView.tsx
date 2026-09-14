@@ -31,6 +31,8 @@ interface DeviceManagerViewProps {
   onFixAdb?: () => void;
   isFixingAdb?: boolean;
   usbHardwareNotice?: { detected: boolean; info: string; vendor: string } | null;
+  onKaliSync?: (params?: any) => Promise<any> | void;
+  isSyncingKali?: boolean;
 }
 
 export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
@@ -46,10 +48,15 @@ export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
   onFixAdb,
   isFixingAdb,
   usbHardwareNotice,
+  onKaliSync,
+  isSyncingKali,
 }) => {
   const [selectedCommand, setSelectedCommand] = useState("adb shell getprop");
-  const [activeTab, setActiveTab] = useState<"PROPERTIES" | "ADB_WRAPPER" | "USB_SUBSYSTEM">("PROPERTIES");
+  const [activeTab, setActiveTab] = useState<"PROPERTIES" | "ADB_WRAPPER" | "USB_SUBSYSTEM" | "KALI_BRIDGE">("PROPERTIES");
   const [isExecuting, setIsExecuting] = useState(false);
+  const [kaliRawText, setKaliRawText] = useState("");
+  const [kaliCustomSerial, setKaliCustomSerial] = useState("");
+  const [kaliFeedback, setKaliFeedback] = useState<string | null>(null);
 
   const isConnected = device && device.serial !== "NO_DEVICE" && device.adbState === "CONNECTED";
   const isUnauthorized = device && device.adbState === "UNAUTHORIZED";
@@ -153,6 +160,18 @@ export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
             >
               <RotateCcw className={`w-3.5 h-3.5 ${isFixingAdb ? "animate-spin text-amber-400" : "text-amber-400"}`} />
               <span>{isFixingAdb ? "Fixing ADB..." : "Restart & Fix ADB"}</span>
+            </button>
+          )}
+
+          {onKaliSync && (
+            <button
+              onClick={() => onKaliSync()}
+              disabled={isSyncingKali}
+              className="px-3.5 py-2 rounded-lg bg-blue-950/80 hover:bg-blue-900/70 border border-blue-500/50 text-blue-300 text-xs font-mono-forensic font-bold flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(59,130,246,0.25)]"
+              title="Sync phone already connected to Kali Linux"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingKali ? "animate-spin text-blue-400" : "text-blue-400"}`} />
+              <span>{isSyncingKali ? "Syncing Kali..." : "Sync Kali Linux"}</span>
             </button>
           )}
 
@@ -280,6 +299,17 @@ export const DeviceManagerView: React.FC<DeviceManagerViewProps> = ({
           }`}
         >
           Linux USB Subsystem &amp; Drivers
+        </button>
+        <button
+          onClick={() => setActiveTab("KALI_BRIDGE")}
+          className={`px-4 py-2 rounded-t-md text-xs font-mono-forensic font-semibold transition-colors flex items-center gap-1.5 ${
+            activeTab === "KALI_BRIDGE"
+              ? "bg-slate-900 border-b-2 border-blue-400 text-blue-300"
+              : "text-blue-400/80 hover:text-blue-300"
+          }`}
+        >
+          <Terminal className="w-3.5 h-3.5" />
+          <span>Kali Linux ADB Bridge</span>
         </button>
       </div>
 
@@ -474,6 +504,110 @@ adb devices -l`}
             <div className="p-3 rounded bg-slate-950 border border-slate-800">
               <span className="text-slate-500">USB Protocol:</span>
               <div className="text-slate-200">Android Debug Bridge (ADB) Subsystem</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Kali Linux ADB Bridge */}
+      {activeTab === "KALI_BRIDGE" && (
+        <div className="p-5 rounded-xl bg-[#080d1a] border border-blue-500/30 space-y-4 font-mono-forensic text-xs shadow-[0_0_25px_rgba(59,130,246,0.15)]">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="text-sm font-bold text-blue-300 flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-blue-400" />
+              Kali Linux Direct ADB Bridge &amp; Terminal Sync
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-blue-950 border border-blue-500/40 text-blue-300 text-[10px] font-bold">
+                PORT 5037 / USB DAEMON
+              </span>
+            </div>
+          </div>
+
+          <p className="text-slate-400 leading-relaxed">
+            If your Android target is already connected and recognized inside your Kali Linux terminal, use this bridge to immediately link it to this forensic workstation.
+          </p>
+
+          {kaliFeedback && (
+            <div className="p-3 rounded bg-blue-950/80 border border-blue-500/50 text-blue-200 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
+              <span>{kaliFeedback}</span>
+            </div>
+          )}
+
+          {/* Action 1: 1-Click Auto Sync */}
+          <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <div className="font-bold text-white text-xs">1-Click Kali Device Sync</div>
+              <p className="text-slate-400 text-[11px] mt-0.5">
+                Automatically queries the workstation&apos;s ADB daemon and syncs the Kali connected target.
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                if (onKaliSync) {
+                  setKaliFeedback("Syncing connected phone from Kali Linux...");
+                  const res: any = await onKaliSync();
+                  if (res?.success) {
+                    setKaliFeedback(`Successfully synchronized target: ${res?.devices?.[0]?.serial || device.serial}`);
+                  }
+                }
+              }}
+              disabled={isSyncingKali}
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shrink-0 transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingKali ? "animate-spin" : ""}`} />
+              <span>{isSyncingKali ? "Syncing..." : "Sync Kali Device Now"}</span>
+            </button>
+          </div>
+
+          {/* Action 2: Paste adb devices -l from Kali terminal */}
+          <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
+            <div className="font-bold text-white text-xs flex items-center gap-2">
+              <span>Paste Terminal Output or Custom Device Serial</span>
+              <span className="text-[10px] text-slate-500 font-normal">(e.g. from `adb devices -l` in Kali)</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-slate-400 block mb-1">Specific Device Serial Number:</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 39241FDJE00388"
+                  value={kaliCustomSerial}
+                  onChange={(e) => setKaliCustomSerial(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono-forensic"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={async () => {
+                    if (onKaliSync) {
+                      setKaliFeedback("Authenticating device serial with Kali bridge...");
+                      const res: any = await onKaliSync({ serial: kaliCustomSerial.trim() || undefined, rawOutput: kaliRawText.trim() || undefined });
+                      if (res?.success) {
+                        setKaliFeedback(`Device ${res?.devices?.[0]?.serial || "Target"} successfully linked and set to CONNECTED.`);
+                      }
+                    }
+                  }}
+                  disabled={isSyncingKali}
+                  className="w-full px-4 py-2 rounded bg-cyan-950/80 hover:bg-cyan-900/60 border border-cyan-500/50 text-cyan-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Connect &amp; Authenticate Serial</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">Or paste full terminal output from Kali Linux terminal:</label>
+              <textarea
+                rows={2}
+                placeholder="List of devices attached&#10;39241FDJE00388 device product:husky model:Pixel_8_Pro device:husky transport_id:1"
+                value={kaliRawText}
+                onChange={(e) => setKaliRawText(e.target.value)}
+                className="w-full p-2.5 bg-slate-900 border border-slate-800 rounded text-slate-300 text-xs font-mono-forensic focus:outline-none focus:border-blue-500"
+              />
             </div>
           </div>
         </div>
